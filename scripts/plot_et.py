@@ -83,9 +83,10 @@ def main():
     fd = np.load(os.path.join(D.INPUTS, "static", "flow_direction.npy"))
     from build_domain import upstream
     labels = []; vals = []
-    for k, o in D.OUTLETS.items():
+    basins = D.OUTLETS.items() if hasattr(D, "OUTLETS") else [(gid, dict(g, gages=[gid])) for gid, g in D.GAGES.items()]   # v2: every gage, interior
+    for k, o in basins:
         w = upstream(fd, *D.local(o["conus2_i"], o["conus2_j"]))
-        et_b = sum(read_pfb(f)[4][w].mean() * 3600.0 for f in files[::1]) if False else None
+        if f"q_{k}" not in daily: continue
         qm = daily[f"q_{k}"].mean() * 86400 * nd / (w.sum() * 1e6) * 1000
         qo_ = qo[o["gages"]].sum(axis=1, min_count=len(o["gages"])).mean() * 86400 * nd / (o["usgs_km2"] * 1e6) * 1000
         labels.append(k); vals.append((qm, qo_))

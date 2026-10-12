@@ -22,13 +22,14 @@ def main(names):
     eo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"ameriflux_et_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
     summer = lambda s: s[(s.index.month >= 6) & (s.index.month <= 9)]
     rows = []
-    for k, o in D.OUTLETS.items():
+    basins = D.OUTLETS.items() if hasattr(D, "OUTLETS") else [(gid, dict(g, gages=[gid])) for gid, g in D.GAGES.items()]
+    for k, o in basins:
         obs = qo[o["gages"]].sum(axis=1, min_count=len(o["gages"]))
         row = dict(outlet=k, obs_annual=obs.mean(), obs_summer=summer(obs).mean())
         for n in names:
             d = pd.read_csv(os.path.join(D.RESULTS, f"{n}_daily.csv"), parse_dates=["date"]).set_index("date")
             m = d[f"q_{k}"]; j = pd.concat([m.rename("m"), obs.rename("o")], axis=1).dropna(); mt = metrics(j.m.values, j.o.values)
-            row.update({f"{n}_annual": m.mean(), f"{n}_summer": summer(m).mean(), f"{n}_NSE": mt.get("NSE", np.nan), f"{n}_KGE": mt.get("KGE", np.nan), f"{n}_spill": np.nanmean(d[f"spill_{k}"])})
+            row.update({f"{n}_annual": m.mean(), f"{n}_summer": summer(m).mean(), f"{n}_NSE": mt.get("NSE", np.nan), f"{n}_KGE": mt.get("KGE", np.nan), f"{n}_spill": np.nanmean(d[f"spill_{k}"]) if f"spill_{k}" in d else np.nan})
         rows.append(row)
     t = pd.DataFrame(rows).set_index("outlet")
     pd.set_option("display.width", 250); pd.set_option("display.float_format", lambda v: f"{v:7.2f}")

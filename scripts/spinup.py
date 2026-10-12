@@ -43,7 +43,7 @@ def water_table_depth(p, mask):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--cycles", type=int, default=4); ap.add_argument("--start", default=os.path.join(D.INPUTS, "static", "ss_pressure_head.pfb"))
-    ap.add_argument("--overland", default="kinematic"); ap.add_argument("--parflow-dir", default="/Users/reed/parflow/build_er_trial")
+    ap.add_argument("--overland", default=D.DECK["overland"]); ap.add_argument("--parflow-dir", default="/Users/reed/parflow/build_er_trial")
     ap.add_argument("--hours", type=int, default=8784); ap.add_argument("--first", type=int, default=1, help="first cycle number (to resume)")
     ap.add_argument("--clm-start", default=None, help="CLM restart to start cycle 1 from (default: cold start)")
     ap.add_argument("--tag", default="pb_spin", help="run-name prefix")
@@ -78,9 +78,10 @@ def main():
         ev = subprocess.run([SUBSETTOOLS_PY, os.path.join(HERE, "evaluate.py"), rd], env=dict(env, PYTHONPATH=os.path.join(a.parflow_dir, "python")), capture_output=True, text=True)
         print("    " + "\n    ".join(l for l in ev.stdout.split("\n") if l and not l.startswith("  hour")), flush=True)
         daily = pd.read_csv(os.path.join(D.RESULTS, f"{name}_daily.csv"))
+        qcols = [c for c in daily.columns if c.startswith("q_")]
         row = dict(cycle=k, wall_s=round(time.time() - t0), wtd_median_start=np.nanmedian(w0[mask]), wtd_median_end=np.nanmedian(w1[mask]),
                    ponded_end=int((p1[-1][mask] > 0).sum()), top_pressure_max_end=float(p1[-1][mask].max()),
-                   **{f"q_{o}": daily[f"q_{o}"].mean() for o in D.OUTLETS}, **{f"spill_{o}": daily[f"spill_{o}"].mean() for o in D.OUTLETS},
+                   **{c: daily[c].mean() for c in qcols}, **{c: daily[c].mean() for c in daily.columns if c.startswith("spill_")},
                    leak_other_faces=daily["leak_other_faces"].mean(), **{f"et_{t}": daily[f"et_{t}"].mean() for t in D.TOWERS})
         log = pd.concat([log[log.cycle != k] if len(log) else log, pd.DataFrame([row])], ignore_index=True); log.to_csv(log_path, index=False)
         print(pd.DataFrame([row]).round(3).to_string(index=False), flush=True)

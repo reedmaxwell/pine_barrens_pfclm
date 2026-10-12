@@ -17,12 +17,15 @@ PF_COUPLED=/Users/reed/parflow/build_er_trial                         # PR 777 +
 PF_STEADY=/Users/reed/Projects/TFG_smoother/parflow/build_etguard_adt   # guard + adaptive dt
 PY=/Users/reed/miniforge3.1/envs/subsettools/bin/python
 mkdir -p $RUNS/${TAG}_states
+START_STAGE=${START_STAGE:-1}                # START_STAGE=2 resumes after a finished year 1
+if [ "$START_STAGE" -le 1 ]; then
 echo "=== 1. coupled year ${TAG}_y1 from $IC"
 if [ "$RST" = "none" ]; then RSTARG=""; else RSTARG="--clm-restart $RST"; fi     # "none": CLM cold start
 PARFLOW_DIR=$PF_COUPLED $PF_COUPLED/py-env/bin/python scripts/run_pine_barrens.py --name ${TAG}_y1 --ic "$IC" ${=RSTARG} ${=RUN_ARGS} | grep -E 'successfully|failed'
-PYTHONPATH=$PF_COUPLED/python $PY scripts/evaluate.py $RUNS/${TAG}_y1 2>&1 | grep -vE 'Warning|c /=|hour '
-$PY scripts/plot_et.py $RUNS/${TAG}_y1 2>&1 | grep -E 'mask-mean|wrote'
 cp $RUNS/${TAG}_y1/${TAG}_y1.out.press.08784.pfb $RUNS/${TAG}_states/y1_press.pfb; cp $RUNS/${TAG}_y1/washita.rst.00000.0 $RUNS/${TAG}_states/y1_clm.rst
+PYTHONPATH=$PF_COUPLED/python $PY scripts/evaluate.py $RUNS/${TAG}_y1 2>&1 | grep -vE 'Warning|c /=|hour '
+$PY scripts/plot_et.py $RUNS/${TAG}_y1 2>&1 | grep -E 'mask-mean|wrote' || true
+fi
 echo "=== 2. P - ET"
 $PY scripts/make_pme.py $RUNS/${TAG}_y1 --out $INPUTS/static/pme_${TAG}.pfb
 echo "=== 3. steady, seepage face"
