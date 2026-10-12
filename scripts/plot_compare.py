@@ -34,12 +34,16 @@ def main():
     qo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
     daily = {r: pd.read_csv(os.path.join(D.RESULTS, f"{r}_daily.csv"), parse_dates=["date"]).set_index("date") for r in a.runs}
     mask = np.load(os.path.join(D.INPUTS, "static", "mask.npy")); river = np.load(os.path.join(D.INPUTS, "static", "river_mask.npy")).astype(bool) & mask
-    outlets = ["rancocas_north", "toms", "cedar"]; names = {"rancocas_north": "North Branch Rancocas at Pemberton", "toms": "Toms River", "cedar": "Cedar Creek"}
+    if hasattr(D, "OUTLETS"):
+        outlets = ["rancocas_north", "toms", "cedar"]; names = {"rancocas_north": "North Branch Rancocas at Pemberton", "toms": "Toms River", "cedar": "Cedar Creek"}
+        gages_of = {k: D.OUTLETS[k]["gages"] for k in outlets}
+    else:
+        outlets = [g for g in ("01467000", "01408500", "01409000") if g in D.GAGES]; names = {g: D.GAGES[g]["name"] for g in outlets}; gages_of = {g: [g] for g in outlets}
     n = len(a.runs)
     fig = plt.figure(figsize=(16, 4 * len(outlets) + 4.5), constrained_layout=True)
     gs = fig.add_gridspec(len(outlets) + 1, max(n, 3), height_ratios=[1] * len(outlets) + [1.3])
     for i, k in enumerate(outlets):
-        o = qo[D.OUTLETS[k]["gages"]].sum(axis=1, min_count=len(D.OUTLETS[k]["gages"]))
+        o = qo[gages_of[k]].sum(axis=1, min_count=len(gages_of[k]))
         ax = fig.add_subplot(gs[i, : max(n, 3) - 1]); ax.plot(o.index, o, "k", lw=1.4, label="USGS")
         for r, lab in zip(a.runs, labels): ax.plot(daily[r].index, daily[r][f"q_{k}"], lw=0.9, label=lab)
         ax.set_ylabel("m3/s"); ax.set_title(names[k]); ax.grid(alpha=0.3); ax.legend(fontsize=8, frameon=False, ncol=2)

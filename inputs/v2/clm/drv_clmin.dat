@@ -68,7 +68,7 @@ forc_hgt_q     30.0                                   Observational height of hu
 !
 ! --- Vegetation Parameters ---
 !
-dewmx          0.2                                   Maximum allowed dew [mm]
+dewmx          0.1                                   Maximum allowed dew [mm]
 rootfr         -9999.0                               Root fraction (depth average; -9999 = use default)
 !
 ! --- Roughness Lengths ---

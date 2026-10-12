@@ -70,16 +70,17 @@ def main():
     for fpath in sorted(glob.glob(os.path.join(D.INPUTS, "forcing", f"wy{D.WATER_YEAR}", "CW3E.APCP.*.pfb"))):
         rain.append(read_pfb(fpath)[:, mask].mean(axis=1).sum() * 3600.0)
     rain = pd.Series(rain, index=pd.date_range(D.START, periods=len(rain)))
+    basins = dict(D.OUTLETS.items()) if hasattr(D, "OUTLETS") else {gid: dict(g, gages=[gid]) for gid, g in D.GAGES.items()}
     series = {}
-    for k, o in D.OUTLETS.items():
+    for k, o in basins.items():
         series[(k, "USGS")] = (qo[o["gages"]].sum(axis=1, min_count=len(o["gages"])), o["usgs_km2"])
     for r in a.runs:
         d = pd.read_csv(os.path.join(D.RESULTS, f"{r}_daily.csv"), parse_dates=["date"]).set_index("date")
-        for k, o in D.OUTLETS.items():
-            series[(k, r)] = (d[f"q_{k}"], o["usgs_km2"])
+        for k, o in basins.items():
+            if f"q_{k}" in d: series[(k, r)] = (d[f"q_{k}"], o["usgs_km2"])
     rows = []
-    fig, ax = plt.subplots(1, len(D.OUTLETS), figsize=(4 * len(D.OUTLETS), 4.2), constrained_layout=True)
-    for i, k in enumerate(D.OUTLETS):
+    fig, ax = plt.subplots(1, len(basins), figsize=(4 * len(basins), 4.2), constrained_layout=True)
+    for i, k in enumerate(basins):
         for (kk, src), (q, km2) in series.items():
             if kk != k: continue
             Q, dQ = recession_points(q.dropna(), rain)
