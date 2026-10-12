@@ -11,28 +11,21 @@ One flat Python script holds every key.  A water year takes about five minutes o
 core.  The deck is the East River deck with this box, the CONUS2.1 subsurface table as subset
 (no calibration), a CLM cold start, and the WY2008 forcing.
 
-## Status (2026-10-12)
+## Status (2026-10-12, evening)
 
-The domain is built, spun up, and scored.  Two spun states are in `inputs/initial/`:
+Two domains share the repo; `PB_DOMAIN=v1` or `v2` selects one (`scripts/domains/`), and inputs, results
+and runs are per domain.
 
-- `ic_pressure.pfb`, `clm_restart.rst`: the subsurface variant that gives baseflow, the CONUS2.1
-  flow barrier moved from 7 m to 42 m and the geology units' horizontal permeability times 100
-  with the vertical as shipped.  Run it with
-  `--geology-k-scale 100 --horizontal-only --flow-barrier inputs/static/pf_flowbarrier_42m.pfb`.
-  Converged annual flows are within 5 to 28 % of the gages and summer flows about half of the
-  observed at Wading and Toms (`results/pb3_rec_c4_*`).
-- `ic_pressure_conus21_subsurface.pfb`, `clm_restart_conus21_subsurface.rst`: the deck as shipped
-  (the run script's defaults).  That state has no summer baseflow: the CONUS2.1 barrier makes
-  the aquifer a 7 m perched layer, and the gages recede in 40 to 137 days against 2 to 5 for the
-  model (`results/recession.png`).
-
-The run script's defaults are still the shipped subsurface, so pair each state with its deck
-options until the default is switched.  Thirteen one-year sensitivity cases from the shipped
-spun state are compared in `results/` (`scripts/compare_runs.py`): roughness, the diffusive
-correction and the full OverlandDiffusive condition change nothing in summer; only the barrier
-depth with the lateral conductivity does.  Modeled ET still exceeds the towers in the dormant
-season (`results/*_et_comparison.png`), and under the new subsurface the Cedar Bridge pine stand
-runs water-limited in summer.
+- **v1**, the five gage-clipped watersheds of 2026-10-11, spun up and calibrated; its sensitivity set is
+  `docs/calibration_log.md`.  Its defects (the mask stops at the gages inland of the coast, artificial
+  no-flow edges through a regional aquifer, channel spill at the gage cells) and the rules that replace it
+  are in `docs/DOMAIN_REDESIGN.md`, with one figure per design step in `results/steps/`.
+- **v2**, built from complete CONUS2 subbasin units plus the Barnegat Bay catchments: 3,060 cells in a
+  65 x 65 box, inland edges no-flow, the coast open, six inland river exits, ten interior gages and all
+  three towers.  Deck defaults carry v1's best cases: the geology-keyed flow barrier (17, 42, 92 m),
+  horizontal permeability x100 on the g4 and g5 units with the vertical as shipped, Manning's raised,
+  the implicit diffusive correction, the Delaware ET package.  Spin-up in progress
+  (`runs/v2/respin_pb4.log`); no scores yet.
 
 ## The domain
 
