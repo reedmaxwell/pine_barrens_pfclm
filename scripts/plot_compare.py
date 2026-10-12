@@ -12,6 +12,8 @@ import sys
 import numpy as np
 import pandas as pd
 import matplotlib
+import matplotlib.colors
+import matplotlib.dates
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from parflow.tools.io import read_pfb
@@ -50,14 +52,17 @@ def main():
         ax2 = fig.add_subplot(gs[i, max(n, 3) - 1]); s = o[(o.index.month >= 6) & (o.index.month <= 9)]; ax2.plot(s.index, s, "k", lw=1.4)
         for r in a.runs: d = daily[r][f"q_{k}"]; ax2.plot(d[(d.index.month >= 6) & (d.index.month <= 9)], lw=0.9)
         ax2.set_title("June to September"); ax2.grid(alpha=0.3); ax2.set_ylim(0, max(4, s.max() * 1.1))
+        ax2.xaxis.set_major_locator(matplotlib.dates.MonthLocator()); ax2.xaxis.set_major_formatter(matplotlib.dates.DateFormatter("%b"))
     for j, (r, lab) in enumerate(zip(a.runs, labels)):
         if j >= max(n, 3): break
         p = end_state(r); ax = fig.add_subplot(gs[len(outlets), j])
         if p is None: ax.set_axis_off(); continue
         w = water_table_depth(p, mask); w = np.where(mask, w, np.nan)
-        im = ax.imshow(w, origin="lower", vmin=0, vmax=3, cmap="viridis_r"); ax.contour(river.astype(int), levels=[0.5], colors="w", linewidths=0.4)
+        # log scale: 0.05 m (ponded and near-surface cells saturate at the top) to 30 m; depths below 0.05 m are clipped
+        im = ax.imshow(np.clip(w, 0.05, 30.0), origin="lower", norm=matplotlib.colors.LogNorm(vmin=0.05, vmax=30.0), cmap="viridis_r")
+        ax.contour(river.astype(int), levels=[0.5], colors="w", linewidths=0.4)
         ax.set_title(f"{lab}\nwater-table depth, end of year (median {np.nanmedian(w):.2f} m, ponded {int((p[-1][mask] > 0).sum())})", fontsize=9); ax.set_xticks([]); ax.set_yticks([])
-        fig.colorbar(im, ax=ax, fraction=0.04, label="m below surface")
+        cb = fig.colorbar(im, ax=ax, fraction=0.04, label="m below surface (log scale)"); cb.set_ticks([0.05, 0.1, 0.3, 1, 3, 10, 30]); cb.set_ticklabels(["<0.05", "0.1", "0.3", "1", "3", "10", "30"])
     fig.suptitle(f"Pine Barrens WY{D.WATER_YEAR}: selected cases against the gages")
     out = os.path.join(D.RESULTS, a.out); fig.savefig(out, dpi=110); print("wrote", out)
 

@@ -16,6 +16,7 @@ scripts/build_domain.py and scripts/clip_t7.py make.  Runs in ./runs/<name>/ (cr
 """
 import argparse
 import os
+import re
 import shutil
 import sys
 
@@ -33,10 +34,11 @@ ap.add_argument("--hours", type=int, default=8784, help="hours to simulate (8784
 ap.add_argument("--name", default=f"pb_wy{D.WATER_YEAR}", help="run name (output prefix)")
 ap.add_argument("--np", type=int, default=1, help="MPI processes (P x Q decomposition is set below)")
 ap.add_argument("--netcdf", action="store_true", help="also write NetCDF output (needs a ParFlow built with NetCDF)")
-ap.add_argument("--overland", default=D.DECK["overland"], choices=("kinematic", "diffusive", "implicit", "dwe"),
-                help="overland flow scheme: the kinematic wave; the diffusive wave with the friction-slope "
-                     "magnitude lagged one step, or fully implicit (both need ParFlow PR 777); or the "
-                     "OverlandDiffusive boundary condition (dwe)")
+ap.add_argument("--overland", default=D.DECK["overland"], choices=("kinematic", "corrected", "diffusive", "implicit", "dwe"),
+                help="overland flow scheme: the kinematic wave; the kinematic flux times (1 + dh/dx / S_0), i.e. "
+                     "the bed-slope magnitude under both terms, fully implicit (corrected); the diffusive wave "
+                     "with the friction-slope magnitude lagged one step (diffusive) or fully implicit (implicit); "
+                     "or the OverlandDiffusive boundary condition (dwe).  All but kinematic and dwe need ParFlow PR 777")
 ap.add_argument("--ic", default=os.path.join(D.INPUTS, "initial", "ic_pressure_delaware_h8784.pfb"), help="initial pressure pfb")
 ap.add_argument("--geology-k-scale", type=float, default=D.DECK["geology_k_scale"], help="multiply the geology units' permeability (--k-units, default all g1-g8)")
 ap.add_argument("--k-units", nargs="*", default=D.DECK["k_units"], help="geology units the scale applies to, e.g. g4 g5")
@@ -48,6 +50,8 @@ ap.add_argument("--mannings", default=(os.path.join(D.INPUTS, "static", D.DECK["
 ap.add_argument("--vegm", default=None, help="vegetation map to use instead of inputs/clm/drv_vegm.dat")
 ap.add_argument("--no-urban", action="store_true", help="use the plain CONUS2.1 indicator (no urban top-layer classes)")
 ap.add_argument("--clm-restart", default=None, help="CLM restart file to start from (default: cold start, drv_clmin clm_ic 2)")
+ap.add_argument("--pfset", action="append", default=[], metavar="KEY=VALUE",
+                help="set any ParFlow key after the deck is built, e.g. --pfset Solver.Nonlinear.EtaChoice=Walker2 (repeatable)")
 args = ap.parse_args()
 
 rundir = os.path.join(D.RUNS, args.name)
@@ -89,10 +93,14 @@ pb.Patch.top.BCPressure.alltime.Value = 0.0
 # diffusive wave options on OverlandKinematic (ParFlow pull request 777).  With the friction
 # slope under both flux terms this is the diffusive wave; "diffusive" takes the magnitude
 # from the previous step, "implicit" from the one being solved for.
-if args.overland in ("diffusive", "implicit"):
+# "corrected" keeps the bed-slope magnitude |S_0|^(1/2) under both terms:
+#   q = -(h^(5/3)/n) (S_0 + dh/dx) / |S_0|^(1/2) = q_kinematic (1 + (dh/dx)/S_0),
+# no magnitude depends on h, so the scheme is implicit by construction with an exact Jacobian.
+if args.overland in ("corrected", "diffusive", "implicit"):
     level = "Lagged" if args.overland == "diffusive" else "Implicit"
+    magnitude = "BedSlope" if args.overland == "corrected" else "FrictionSlope"
     DIFF = "Solver.OverlandKinematic.Diffusion."
-    for key, value in (("SlopeMagnitude", "FrictionSlope"), ("BedTermMagnitude", level),
+    for key, value in (("SlopeMagnitude", magnitude), ("BedTermMagnitude", level),
                        ("SurfaceTermMagnitude", level), ("Jacobian", "FullNewton")):
         pb.pfset(key=DIFF + key, value=value, silence_if_undefined=True)
 
@@ -163,6 +171,16 @@ pb.Solver.Linear.Preconditioner.PCMatrixType = "PFSymmetric"
 pb.Solver.SurfacePredictor = True
 pb.Solver.SurfacePredictor.LateralFlows = True
 pb.Solver.SurfacePredictor.PressureValue = -1.0
+
+# ---------------------------------------------------------------- key overrides (solver tests)
+for kv in args.pfset:
+    key, _, value = kv.partition("=")
+    try:
+        value = float(value) if re.fullmatch(r"[-+]?\d*\.?\d+([eE][-+]?\d+)?", value) else value
+    except ValueError:
+        pass
+    pb.pfset(key=key, value=value)
+    print(f"override {key} = {value}")
 
 # ---------------------------------------------------------------- output
 pb.Solver.PrintPressure = True

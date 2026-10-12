@@ -1,0 +1,50 @@
+domain,run,start,change
+v1,pb10_kin,Delaware end state (dry),shipped deck; kinematic; CLM cold
+v1,pb_spin_c1,CONUS2 steady state,shipped deck; kinematic; CLM cold
+v1,pb2_y1,kinematic steady state,Delaware ET package; shipped subsurface (barrier 7 m)
+v1,pb2_rec_c1,pb2 recursion,cycle 1
+v1,pb2_rec_c2,pb2 recursion,cycle 2
+v1,pb2_rec_c3,pb2 recursion,cycle 3
+v1,pb2_rec_c4,pb2 recursion,cycle 4 (converged); the v1 control
+v1,pb2_k01,pb2_rec_c1 end,geology K x0.1
+v1,pb2_k10,pb2_rec_c1 end,geology K x10
+v1,pb2_nofb,pb2_rec_c1 end,flow barrier off
+v1,pb2_k10_nofb,pb2_rec_c1 end,K x10 and barrier off
+v1,pb2_an001,pb2_rec_c1 end,vertical/horizontal K 0.01
+v1,pb2_an1,pb2_rec_c1 end,vertical/horizontal K 1.0
+v1,pb2_mann,pb2_rec_c1 end,Manning's raised (channel 0.15; hillslope >= 0.10)
+v1,pb2_diff,pb2_rec_c1 end,diffusive wave; lagged magnitude
+v1,pb2_dwe,pb2_rec_c1 end,OverlandDiffusive BC
+v1,pb2_kh100,pb2_rec_c1 end,horizontal K x100; vertical as shipped
+v1,pb2_fb42_k30,pb2_rec_c1 end,barrier at 42 m; K x30
+v1,pb2_fb42_kh100,pb2_rec_c1 end,barrier at 42 m; horizontal K x100
+v1,pb3_y1,pb2_fb42_kh100 end,new subsurface (barrier 42 m; kh x100); year 1
+v1,pb3_rec_c1,pb3 recursion,cycle 1
+v1,pb3_rec_c2,pb3 recursion,cycle 2
+v1,pb3_rec_c3,pb3 recursion,cycle 3
+v1,pb3_rec_c4,pb3 recursion,cycle 4 (converged); new-subsurface control
+v1,pb3_cold,pb3_rec_c4 end,CLM cold start
+v1,pb3_dwe,pb3_rec_c4 end,OverlandDiffusive BC
+v1,pb3_impl,pb3_rec_c4 end,diffusive wave; implicit magnitude
+v1,pb3_mann,pb3_rec_c4 end,Manning's raised
+v1,pb3_impl_mann,pb3_rec_c4 end,implicit + Manning's raised; best v1 case
+v1,pb3_lcENF,pb3_rec_c4 end,grassland -> evergreen needleleaf vegm; CLM restart
+v1,pb3_lcENF_cold,pb3_rec_c4 end,grassland -> evergreen needleleaf vegm; CLM cold
+v2,pb4_y1,CONUS2 steady state,v2 deck (geology-keyed barrier; g4/g5 horizontal K x100; Manning's v1; implicit); CLM cold
+v2,pb4_rec_c1,pb4 recursion,cycle 1 (ran kinematic; driver default bug)
+v2,pb4_rec_c2,pb4 recursion,cycle 2; implicit
+v2,pb4_rec_c3,pb4 recursion,cycle 3
+v2,pb4_rec_c4,pb4 recursion,cycle 4 (converged); the v2 control
+v2,pb4_k10,pb4_rec_c4 end,g4/g5 horizontal K x10 (one year; not re-spun)
+v2,pb4_k20,pb4_rec_c4 end,g4/g5 horizontal K x20 (one year; not re-spun)
+v2,pb4_corr,pb4_rec_c4 end,corrected overland scheme (bed-slope magnitude; implicit)
+v2,pb5_k10_y1,pb4_rec_c4 end,re-spin at K x10; year 1
+v2,pb5_k10_rec_c1,pb5_k10 recursion,cycle 1
+v2,pb5_k10_rec_c2,pb5_k10 recursion,cycle 2
+v2,pb5_k10_rec_c3,pb5_k10 recursion,cycle 3
+v2,pb5_k10_rec_c4,pb5_k10 recursion,cycle 4
+v2,pb5_k20_y1,pb4_rec_c4 end,re-spin at K x20; year 1
+v2,pb5_k20_rec_c1,pb5_k20 recursion,cycle 1
+v2,pb5_k20_rec_c2,pb5_k20 recursion,cycle 2
+v2,pb5_k20_rec_c3,pb5_k20 recursion,cycle 3
+v2,pb5_k20_rec_c4,pb5_k20 recursion,cycle 4
