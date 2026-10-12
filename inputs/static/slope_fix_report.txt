@@ -1,0 +1,11 @@
+Pine Barrens boundary slope fix
+components zeroed: 114 (x 47, y 67) on 110 cells
+boundary faces: 304; before zero/inward/outward 18/156/130; after 135/153/16
+outlet faces kept: [(0, 21, 'W'), (9, 28, 'W'), (30, 0, 'S'), (46, 39, 'S'), (54, 31, 'N')]
+river-cell outward faces kept (bank spill, scored with their outlet): 11
+GATE 1 outward faces only at outlets and river cells: PASS
+kinematic sinks (in-mask cells with no outflow face): raw 0 [], fixed 0, new []
+GATE 2 no new sinks: PASS
+D4 trace from the outlets on the slopes: raw reaches 607/1246; fixed reaches 830/1246, off-mask 0, primary receiver leaves the mask or pit: 5 [(np.int64(12), np.int64(28)), (np.int64(51), np.int64(30)), (np.int64(52), np.int64(30)), (np.int64(48), np.int64(31)), (np.int64(49), np.int64(31))]
+GATE 3 no pits, and the only cells whose steepest face leaves the mask are kept river faces: PASS
+slope magnitude over the mask (fixed): median 1.85e-03, zero-slope cells 4

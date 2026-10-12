@@ -1,0 +1,17 @@
+local_i,local_j,face,axis,slope,kind,outlet
+29,0,S,y,0.0007409454981486005,river bank spill,wading
+30,0,S,y,0.0013350464502970398,outlet,wading
+0,21,W,x,0.0001,outlet,rancocas_south
+9,28,W,x,0.000411147265280448,outlet,rancocas_north
+11,28,S,y,0.00010000000000000143,river bank spill,rancocas_north
+12,28,S,y,0.000411147265280448,river bank spill,rancocas_north
+50,30,S,y,0.0009479109048843384,river bank spill,cedar
+51,30,S,y,0.007143261551856995,river bank spill,cedar
+52,30,S,y,0.0015478758811950683,river bank spill,cedar
+47,31,S,y,0.0009479109048843384,river bank spill,cedar
+48,31,S,y,0.0012555848360061646,river bank spill,cedar
+49,31,S,y,0.0013025634288787841,river bank spill,cedar
+54,31,N,y,-0.0003822026252746582,outlet,cedar
+44,39,S,y,0.0008501600362360478,river bank spill,toms
+45,39,S,y,0.00042344298586249353,river bank spill,toms
+46,39,S,y,0.0035988593697547913,outlet,toms

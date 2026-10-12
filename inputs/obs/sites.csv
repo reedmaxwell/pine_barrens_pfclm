@@ -1,0 +1,16 @@
+kind,site_id,site_name,conus2_i,conus2_j,local_i,local_j,in_mask,units,usgs_km2,outlet,note
+streamflow,01467000,North Branch Rancocas Creek at Pemberton NJ,4030,1920,9,28,True,m3/s,306,rancocas_north,
+streamflow,01466900,Greenwood Branch at New Lisbon NJ,4034,1921,13,29,True,m3/s,202,,
+streamflow,01465850,South Branch Rancocas Creek at Vincentown NJ,4021,1913,0,21,True,m3/s,167,rancocas_south,
+streamflow,01409810,West Branch Wading River near Jenkins NJ,4050,1894,29,2,True,m3/s,218,wading,
+streamflow,01410000,Oswego River at Harrisville NJ,4049,1895,28,3,True,m3/s,188,wading,
+streamflow,01408500,Toms River near Toms River NJ,4067,1931,46,39,True,m3/s,319,toms,
+streamflow,01409000,Cedar Creek at Lanoka Harbor NJ,4075,1923,54,31,True,m3/s,138,cedar,
+et_tower,US-Slt,Silas Little Experimental Forest,4037,1917,16,25,False,mm/day,,,AmeriFlux DBF
+et_tower,US-Dix,Fort Dix,4048,1927,27,35,True,mm/day,,,AmeriFlux MF
+et_tower,US-Ced,Cedar Bridge,4057,1914,36,22,True,mm/day,,,AmeriFlux CSH
+outlet,rancocas_north,North Branch Rancocas Creek at Pemberton NJ,4030,1920,9,28,True,m3/s,306,rancocas_north,scored against 01467000
+outlet,rancocas_south,South Branch Rancocas Creek at Vincentown NJ,4021,1913,0,21,True,m3/s,167,rancocas_south,scored against 01465850
+outlet,wading,Wading River below the Oswego confluence (West Branch at Jenkins + Oswego at Harrisville),4051,1892,30,0,True,m3/s,406,wading,scored against 01409810+01410000
+outlet,toms,Toms River near Toms River NJ,4067,1931,46,39,True,m3/s,319,toms,scored against 01408500
+outlet,cedar,Cedar Creek at Lanoka Harbor NJ,4075,1923,54,31,True,m3/s,138,cedar,scored against 01409000
