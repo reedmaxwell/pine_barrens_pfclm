@@ -1,0 +1,10 @@
+quantity,n,bias,rmse,r,NSE,KGE
+"streamflow rancocas_north (01467000) [m3/s], daily",366,0.554,3.193,0.652,-1.528,-0.093
+"streamflow rancocas_south (01465850) [m3/s], daily",366,0.452,1.504,0.802,-0.28,0.223
+"streamflow wading (01409810+01410000) [m3/s], daily",366,0.257,4.206,0.723,-1.147,-0.051
+"streamflow toms (01408500) [m3/s], daily",366,-0.569,4.259,0.708,-2.968,-0.583
+"streamflow cedar (01409000) [m3/s], daily",366,-0.235,1.609,0.776,-2.045,-0.404
+"streamflow 01466900 nested [m3/s], daily",366,1.085,3.235,0.541,-6.23,-1.064
+"ET US-Slt [mm/day], tower days",229,0.598,1.035,0.818,0.443,0.578
+"ET US-Dix [mm/day], tower days",170,0.102,0.764,-0.07,-3.459,-0.34
+"ET US-Ced [mm/day], tower days",264,-0.9,1.595,0.09,-0.682,-0.214

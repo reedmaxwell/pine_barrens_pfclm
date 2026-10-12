@@ -30,14 +30,16 @@ from parflow.tools.fs import mkdir
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import domain as D
 import deck
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--ic", required=True); ap.add_argument("--name", required=True)
 ap.add_argument("--top", default="seepage", choices=("seepage", "overland"))
-ap.add_argument("--pme", default=os.path.join(ROOT, "inputs", "static", "pme_coupled.pfb"))
+ap.add_argument("--pme", default=os.path.join(D.INPUTS, "static", "pme_coupled.pfb"))
 ap.add_argument("--stop-time", type=float, default=4.0e6, help="model hours (4e6 h = 456 years)")
-ap.add_argument("--geology-k-scale", type=float, default=1.0); ap.add_argument("--horizontal-only", action="store_true"); ap.add_argument("--flow-barrier", default=None); ap.add_argument("--geology-aniso", type=float, default=None)
+ap.add_argument("--geology-k-scale", type=float, default=D.DECK["geology_k_scale"]); ap.add_argument("--horizontal-only", action="store_true", default=D.DECK["horizontal_only"]); ap.add_argument("--k-units", nargs="*", default=D.DECK["k_units"])
+ap.add_argument("--flow-barrier", default=(os.path.join(D.INPUTS, "static", D.DECK["flow_barrier"]) if D.DECK["flow_barrier"] != "pf_flowbarrier.pfb" else None)); ap.add_argument("--geology-aniso", type=float, default=None)
 ap.add_argument("--no-urban", action="store_true", help="use the plain CONUS2.1 indicator (no urban top-layer classes)")
 ap.add_argument("--np", type=int, default=1)
 args = ap.parse_args()
@@ -47,18 +49,18 @@ has_guard = subprocess.run(["sh", "-c", f"strings {os.environ['PARFLOW_DIR']}/bi
 if not has_guard:
     raise SystemExit(f"{os.environ['PARFLOW_DIR']} has no Solver.EvapTransGuard; use a build with the guard (build_etguard_adt)")
 
-rundir = os.path.join(ROOT, "runs", args.name); mkdir(rundir)
+rundir = os.path.join(D.RUNS, args.name); mkdir(rundir)
 for f in deck.STATIC_FILES:
-    shutil.copy(os.path.join(ROOT, "inputs", "static", f), rundir)
+    shutil.copy(os.path.join(D.INPUTS, "static", f), rundir)
 if args.flow_barrier:
     shutil.copy(args.flow_barrier, os.path.join(rundir, "pf_flowbarrier.pfb"))
 URBAN = not args.no_urban
 if URBAN:                                   # the urban top-layer classes (the Delaware package)
-    shutil.copy(os.path.join(ROOT, "inputs", "static", "pf_indicator_urban_ktop02.pfb"), os.path.join(rundir, "pf_indicator.pfb"))
+    shutil.copy(os.path.join(D.INPUTS, "static", "pf_indicator_urban_ktop02.pfb"), os.path.join(rundir, "pf_indicator.pfb"))
 shutil.copy(args.ic, os.path.join(rundir, "ic_pressure.pfb")); shutil.copy(args.pme, os.path.join(rundir, "pme.pfb"))
 os.chdir(rundir)
 sp = Run(args.name)
-deck.grid(sp, args.np); deck.domain_and_units(sp, URBAN); deck.subsurface(sp, URBAN, args.geology_k_scale, True, args.geology_aniso, args.horizontal_only); deck.topography(sp); deck.bottom_and_sides(sp)
+deck.grid(sp, args.np); deck.domain_and_units(sp, URBAN); deck.subsurface(sp, URBAN, args.geology_k_scale, True, args.geology_aniso, args.horizontal_only, k_units=args.k_units); deck.topography(sp); deck.bottom_and_sides(sp)
 
 sp.Patch.top.BCPressure.Type = "SeepageFace" if args.top == "seepage" else "OverlandKinematic"
 sp.Patch.top.BCPressure.Cycle = "constant"

@@ -1,6 +1,8 @@
 runs/
 inputs/forcing/
+inputs/*/forcing/
 results/*_daily.csv
+results/*/*_daily.csv
 *.tar.gz
 __pycache__/
 .DS_Store

@@ -25,8 +25,8 @@ z = np.load(os.path.join(ROOT, "results", "context_fields.npz")); b = tuple(int(
 e = np.load(os.path.join(ROOT, "results", "context_exits.npz")); kind = e["kind"]; ei, ej = e["exit_i"], e["exit_j"]
 land = np.nan_to_num(z["mask"], nan=0) > 0; el = np.where(land, z["elevation"], np.nan); da = np.where(land, z["drainage_area"], np.nan)
 m = D.IJ_BOUNDS[0] - b[0]; ny, nx = land.shape
-mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
-sites = pd.read_csv(os.path.join(ROOT, "inputs", "obs", "sites.csv"), dtype={"site_id": str})
+mask = np.load(os.path.join(ROOT, "inputs", "v1", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
+sites = pd.read_csv(os.path.join(ROOT, "inputs", "v1", "obs", "sites.csv"), dtype={"site_id": str})
 
 # receiving water of each cell: coastal exits grouped by exit latitude (j): Great Bay (the Mullica mouth,
 # j < 1895 on conus2), Barnegat Bay (j >= 1895); frame exits by side

@@ -20,9 +20,10 @@ import numpy as np
 import pandas as pd
 import hf_hydrodata as hf
 
-HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE); OBS = os.path.join(ROOT, "inputs", "obs")
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import domain as D
+OBS = os.path.join(D.INPUTS, "obs")
 LAMBDA = 2.45e6
 END_INCL = (pd.Timestamp(D.END) - pd.Timedelta(days=1)).strftime("%Y-%m-%d")
 

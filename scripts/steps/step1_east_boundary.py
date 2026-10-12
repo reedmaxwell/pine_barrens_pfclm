@@ -22,8 +22,8 @@ import domain as D
 z = np.load(os.path.join(ROOT, "results", "context_fields.npz")); b = tuple(int(x) for x in z["bounds"])   # the 25 km frame
 land = np.nan_to_num(z["mask"], nan=0) > 0; el = np.where(land, z["elevation"], np.nan); da = np.where(land, z["drainage_area"], np.nan)
 m = D.IJ_BOUNDS[0] - b[0]                                                          # frame offset of the current box
-mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
-sites = pd.read_csv(os.path.join(ROOT, "inputs", "obs", "sites.csv"), dtype={"site_id": str})
+mask = np.load(os.path.join(ROOT, "inputs", "v1", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
+sites = pd.read_csv(os.path.join(ROOT, "inputs", "v1", "obs", "sites.csv"), dtype={"site_id": str})
 
 # the coast within the box's rows: the easternmost land cell in each row, and one bay column beyond it
 rows = slice(m, m + D.NY)

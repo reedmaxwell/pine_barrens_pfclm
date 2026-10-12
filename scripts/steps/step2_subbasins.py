@@ -25,10 +25,10 @@ e = np.load(os.path.join(ROOT, "results", "context_exits.npz")); fd = e["fd"]; k
 land = np.nan_to_num(z["mask"], nan=0) > 0; da = np.where(land, z["drainage_area"], np.nan)
 sb = np.where(land, z["subbasins"], np.nan); ny, nx = land.shape
 m = D.IJ_BOUNDS[0] - b[0]
-mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
+mask = np.load(os.path.join(ROOT, "inputs", "v1", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
 STEP1 = (D.IJ_BOUNDS[0], D.IJ_BOUNDS[1], 4080, D.IJ_BOUNDS[3])                       # from step 1
 box1 = np.zeros(land.shape, bool); box1[STEP1[1] - b[1]:STEP1[3] - b[1], STEP1[0] - b[0]:STEP1[2] - b[0]] = True
-sites = pd.read_csv(os.path.join(ROOT, "inputs", "obs", "sites.csv"), dtype={"site_id": str})
+sites = pd.read_csv(os.path.join(ROOT, "inputs", "v1", "obs", "sites.csv"), dtype={"site_id": str})
 D4 = {1: (0, -1), 2: (-1, 0), 3: (0, 1), 4: (1, 0)}
 
 ids = sorted(int(v) for v in np.unique(sb[np.isfinite(sb)]))

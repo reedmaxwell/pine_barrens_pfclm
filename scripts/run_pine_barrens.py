@@ -28,39 +28,43 @@ import domain as D
 import deck
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--forcing", default=os.path.join(ROOT, "inputs", "forcing", f"wy{D.WATER_YEAR}"), help="directory of CW3E.<VAR>.NNNNNN_to_NNNNNN.pfb files")
+ap.add_argument("--forcing", default=os.path.join(D.INPUTS, "forcing", f"wy{D.WATER_YEAR}"), help="directory of CW3E.<VAR>.NNNNNN_to_NNNNNN.pfb files")
 ap.add_argument("--hours", type=int, default=8784, help="hours to simulate (8784 = the full 2008 leap water year)")
 ap.add_argument("--name", default=f"pb_wy{D.WATER_YEAR}", help="run name (output prefix)")
 ap.add_argument("--np", type=int, default=1, help="MPI processes (P x Q decomposition is set below)")
 ap.add_argument("--netcdf", action="store_true", help="also write NetCDF output (needs a ParFlow built with NetCDF)")
-ap.add_argument("--overland", default="kinematic", choices=("kinematic", "diffusive", "implicit", "dwe"),
+ap.add_argument("--overland", default=D.DECK["overland"], choices=("kinematic", "diffusive", "implicit", "dwe"),
                 help="overland flow scheme: the kinematic wave; the diffusive wave with the friction-slope "
                      "magnitude lagged one step, or fully implicit (both need ParFlow PR 777); or the "
                      "OverlandDiffusive boundary condition (dwe)")
-ap.add_argument("--ic", default=os.path.join(ROOT, "inputs", "initial", "ic_pressure_delaware_h8784.pfb"), help="initial pressure pfb")
-ap.add_argument("--geology-k-scale", type=float, default=1.0, help="multiply the geology units' permeability (g1-g8)")
+ap.add_argument("--ic", default=os.path.join(D.INPUTS, "initial", "ic_pressure_delaware_h8784.pfb"), help="initial pressure pfb")
+ap.add_argument("--geology-k-scale", type=float, default=D.DECK["geology_k_scale"], help="multiply the geology units' permeability (--k-units, default all g1-g8)")
+ap.add_argument("--k-units", nargs="*", default=D.DECK["k_units"], help="geology units the scale applies to, e.g. g4 g5")
 ap.add_argument("--geology-aniso", type=float, default=None, help="vertical/horizontal permeability ratio for the geology units (0.1 as shipped)")
-ap.add_argument("--horizontal-only", action="store_true", help="apply --geology-k-scale to x and y only; vertical permeability stays as shipped")
-ap.add_argument("--flow-barrier", default=None, help="flow barrier file to use instead of inputs/static/pf_flowbarrier.pfb (e.g. pf_flowbarrier_42m.pfb)")
+ap.add_argument("--horizontal-only", action="store_true", default=D.DECK["horizontal_only"], help="apply --geology-k-scale to x and y only; vertical permeability stays as shipped")
+ap.add_argument("--flow-barrier", default=(os.path.join(D.INPUTS, "static", D.DECK["flow_barrier"]) if D.DECK["flow_barrier"] != "pf_flowbarrier.pfb" else None), help="flow barrier file to use instead of inputs/static/pf_flowbarrier.pfb (e.g. pf_flowbarrier_42m.pfb)")
 ap.add_argument("--no-flow-barrier", action="store_true", help="drop the CONUS2.1 vertical flow barrier")
-ap.add_argument("--mannings", default=None, help="roughness file to use instead of inputs/static/mannings.pfb (e.g. mannings_v1.pfb)")
+ap.add_argument("--mannings", default=(os.path.join(D.INPUTS, "static", D.DECK["mannings"]) if D.DECK["mannings"] else None), help="roughness file to use instead of inputs/static/mannings.pfb (e.g. mannings_v1.pfb)")
+ap.add_argument("--vegm", default=None, help="vegetation map to use instead of inputs/clm/drv_vegm.dat")
 ap.add_argument("--no-urban", action="store_true", help="use the plain CONUS2.1 indicator (no urban top-layer classes)")
 ap.add_argument("--clm-restart", default=None, help="CLM restart file to start from (default: cold start, drv_clmin clm_ic 2)")
 args = ap.parse_args()
 
-rundir = os.path.join(ROOT, "runs", args.name)
+rundir = os.path.join(D.RUNS, args.name)
 mkdir(rundir)
 for f in deck.STATIC_FILES:
-    shutil.copy(os.path.join(ROOT, "inputs", "static", f), rundir)
+    shutil.copy(os.path.join(D.INPUTS, "static", f), rundir)
 if args.mannings:
     shutil.copy(args.mannings, os.path.join(rundir, "mannings.pfb"))
 if args.flow_barrier:
     shutil.copy(args.flow_barrier, os.path.join(rundir, "pf_flowbarrier.pfb"))
 URBAN = not args.no_urban
 if URBAN:                                   # the urban top-layer classes (the Delaware package)
-    shutil.copy(os.path.join(ROOT, "inputs", "static", "pf_indicator_urban_ktop02.pfb"), os.path.join(rundir, "pf_indicator.pfb"))
+    shutil.copy(os.path.join(D.INPUTS, "static", "pf_indicator_urban_ktop02.pfb"), os.path.join(rundir, "pf_indicator.pfb"))
 for f in ("drv_clmin.dat", "drv_vegm.dat", "drv_vegp.dat"):
-    shutil.copy(os.path.join(ROOT, "inputs", "clm", f), rundir)
+    shutil.copy(os.path.join(D.INPUTS, "clm", f), rundir)
+if args.vegm:                               # a vegetation-map variant (after the standard copy, which it replaces)
+    shutil.copy(args.vegm, os.path.join(rundir, "drv_vegm.dat"))
 shutil.copy(args.ic, os.path.join(rundir, "ic_pressure.pfb"))
 if args.clm_restart:
     shutil.copy(args.clm_restart, os.path.join(rundir, "washita.rst.00000.0"))   # CLM's fixed restart name
@@ -73,7 +77,7 @@ pb = Run(args.name)                      # working directory = rundir (we change
 # ---------------------------------------------------------------- grid, units, subsurface, topography (scripts/deck.py)
 deck.grid(pb, args.np)
 deck.domain_and_units(pb, URBAN)
-deck.subsurface(pb, URBAN, args.geology_k_scale, not args.no_flow_barrier, args.geology_aniso, args.horizontal_only)
+deck.subsurface(pb, URBAN, args.geology_k_scale, not args.no_flow_barrier, args.geology_aniso, args.horizontal_only, k_units=args.k_units)
 deck.topography(pb)
 
 # ---------------------------------------------------------------- boundary conditions

@@ -1,0 +1,14 @@
+kind,site_id,site_name,conus2_i,conus2_j,local_i,local_j,in_mask,units,usgs_km2,outlet,note
+streamflow,01408500,Toms River near Toms River NJ,4067,1931,53,43,True,m3/s,319,,
+streamflow,01409000,Cedar Creek at Lanoka Harbor NJ,4075,1923,61,35,True,m3/s,138,,
+streamflow,01409280,Westecunk Creek at Stafford Forge NJ,4067,1898,53,10,True,m3/s,41,,
+streamflow,01409810,West Branch Wading River near Jenkins NJ,4050,1894,36,6,True,m3/s,218,,
+streamflow,01410000,Oswego River at Harrisville NJ,4049,1895,35,7,True,m3/s,188,,
+streamflow,01464500,Crosswicks Creek at Extonville NJ,4030,1941,16,53,True,m3/s,211,,
+streamflow,01465850,South Branch Rancocas Creek at Vincentown NJ,4021,1913,7,25,True,m3/s,167,,
+streamflow,01466900,Greenwood Branch at New Lisbon NJ,4034,1921,20,33,True,m3/s,202,,
+streamflow,01467000,North Branch Rancocas Creek at Pemberton NJ,4030,1920,16,32,True,m3/s,306,,
+streamflow,01408900,Cedar Creek at Western Blvd near Lanoka Harbor NJ,4074,1923,60,35,True,m3/s,129,,
+et_tower,US-Slt,Silas Little Experimental Forest,4037,1917,23,29,True,mm/day,,,AmeriFlux DBF
+et_tower,US-Dix,Fort Dix,4048,1927,34,39,True,mm/day,,,AmeriFlux MF
+et_tower,US-Ced,Cedar Bridge,4057,1914,43,26,True,mm/day,,,AmeriFlux CSH

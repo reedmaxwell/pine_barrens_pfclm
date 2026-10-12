@@ -18,9 +18,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from parflow.tools.io import read_pfb
 
-HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE); OBS = os.path.join(ROOT, "inputs", "obs")
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import domain as D
+OBS = os.path.join(D.INPUTS, "obs")
 TZ = 5
 COMP = {4: "total", 5: "ground evaporation", 7: "vegetation (canopy + transpiration)", 8: "transpiration"}   # clm_output layers: qflx_evap_tot, _grnd, _veg, qflx_tran_veg
 
@@ -54,9 +55,9 @@ def main():
         df["canopy evaporation"] = df["vegetation (canopy + transpiration)"] - df["transpiration"]
     eo = pd.read_csv(os.path.join(OBS, f"ameriflux_et_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
     qo = pd.read_csv(os.path.join(OBS, f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
-    daily = pd.read_csv(os.path.join(ROOT, "results", f"{name}_daily.csv"), parse_dates=["date"]).set_index("date")
+    daily = pd.read_csv(os.path.join(D.RESULTS, f"{name}_daily.csv"), parse_dates=["date"]).set_index("date")
     P = 0.0
-    for f in sorted(glob.glob(os.path.join(ROOT, "inputs", "forcing", f"wy{D.WATER_YEAR}", "CW3E.APCP.*.pfb"))):
+    for f in sorted(glob.glob(os.path.join(D.INPUTS, "forcing", f"wy{D.WATER_YEAR}", "CW3E.APCP.*.pfb"))):
         P += read_pfb(f)[:, mask].mean(axis=1).sum() * 3600.0
     fig, ax = plt.subplots(3, 2, figsize=(14, 13), constrained_layout=True); ax = ax.ravel()
     # (a) monthly mean ET, model at the tower cell vs tower, valid days only
@@ -79,7 +80,7 @@ def main():
     ax[2].plot(x, gm["total"], "k.", label=f"total ({md['total'].sum():.0f} mm/yr)")
     ax[2].set_xticks(x); ax[2].set_xticklabels([str(p_)[-2:] for p_ in gm.index]); ax[2].set_ylabel("mm/day"); ax[2].set_title("model ET components, mask mean, by month"); ax[2].legend(fontsize=8, frameon=False)
     # (e) water balance per outlet basin: P, model ET (basin cells), model Q, observed Q, implied ET = P - Qobs
-    fd = np.load(os.path.join(ROOT, "inputs", "static", "flow_direction.npy"))
+    fd = np.load(os.path.join(D.INPUTS, "static", "flow_direction.npy"))
     from build_domain import upstream
     labels = []; vals = []
     for k, o in D.OUTLETS.items():
@@ -95,10 +96,10 @@ def main():
     ax[5].plot(md.index, md["total"], "C0", lw=0.8, label="model, mask mean"); ax[5].plot(eo.index, eo.mean(axis=1), "k.", ms=3, label="towers, mean of valid"); ax[5].set_ylabel("mm/day"); ax[5].set_title("daily ET"); ax[5].legend(frameon=False)
     for x_ in ax: x_.grid(alpha=0.3)
     fig.suptitle(f"Pine Barrens WY{D.WATER_YEAR}: {name}, ET against the towers")
-    out = os.path.join(ROOT, "results", f"{name}_et_comparison.png"); fig.savefig(out, dpi=120)
+    out = os.path.join(D.RESULTS, f"{name}_et_comparison.png"); fig.savefig(out, dpi=120)
     tab = pd.DataFrame(rows).pivot(index="month", columns="site", values=["tower", "model"]).round(2); print(tab.to_string())
     print(f"\nmask-mean annual: P {P:.0f} mm, ET {md['total'].sum():.0f} mm (" + ", ".join(f"{k} {md[k].sum():.0f}" for k in ("ground evaporation", "canopy evaporation", "transpiration")) + ")")
-    md.to_csv(os.path.join(ROOT, "results", f"{name}_et_components_daily.csv")); print("wrote", out)
+    md.to_csv(os.path.join(D.RESULTS, f"{name}_et_components_daily.csv")); print("wrote", out)
 
 
 if __name__ == "__main__":

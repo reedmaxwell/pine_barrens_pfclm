@@ -24,7 +24,7 @@ def pfidb(path):
 
 
 def describe(name):
-    rd = os.path.join(ROOT, "runs", name); db = glob.glob(os.path.join(rd, "*.pfidb"))
+    rd = os.path.join(D.RUNS, name); db = glob.glob(os.path.join(rd, "*.pfidb"))
     if not db: return None
     d = pfidb(db[0]); row = dict(run=name)
     row["start state"] = os.path.basename(d.get("Geom.domain.ICPressure.FileName", "")) and "(copied as ic_pressure.pfb)"
@@ -39,8 +39,8 @@ def describe(name):
     else:
         row["flow barrier"] = "off"
     if os.path.exists(os.path.join(rd, "mannings.pfb")):
-        mn = read_pfb(os.path.join(rd, "mannings.pfb"))[0] * 3600; mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy"))
-        riv = np.load(os.path.join(ROOT, "inputs", "static", "river_mask.npy")).astype(bool) & mask
+        mn = read_pfb(os.path.join(rd, "mannings.pfb"))[0] * 3600; mask = np.load(os.path.join(D.INPUTS, "static", "mask.npy"))
+        riv = np.load(os.path.join(D.INPUTS, "static", "river_mask.npy")).astype(bool) & mask
         row["Manning's n channel / hillslope min"] = f"{np.median(mn[riv]):.2f} / {mn[mask & ~riv].min():.3f}"
     bc = d.get("Patch.top.BCPressure.Type"); diff = d.get("Solver.OverlandKinematic.Diffusion.SlopeMagnitude")
     row["overland"] = "OverlandDiffusive (DWE)" if bc == "OverlandDiffusive" else ("diffusive correction, " + d.get("Solver.OverlandKinematic.Diffusion.BedTermMagnitude", "") if diff else "kinematic")
@@ -56,11 +56,11 @@ def describe(name):
         row["cropland LAI / vcmx25"] = f"{rows_[3][11]} / {rows_[41][11]}"
     row["urban top classes"] = "yes" if "u1" in d.get("GeomInput.indi_input.GeomNames", "") else "no"
     # outcome
-    csv = os.path.join(ROOT, "results", f"{name}_daily.csv")
+    csv = os.path.join(D.RESULTS, f"{name}_daily.csv")
     if os.path.exists(csv):
         dd = pd.read_csv(csv, parse_dates=["date"]).set_index("date")
-        qo = pd.read_csv(os.path.join(ROOT, "inputs", "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
-        eo = pd.read_csv(os.path.join(ROOT, "inputs", "obs", f"ameriflux_et_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
+        qo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
+        eo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"ameriflux_et_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
         summer = lambda s: s[(s.index.month >= 6) & (s.index.month <= 9)]
         for k, lab in (("rancocas_north", "Pemberton"), ("toms", "Toms")):
             o = qo[D.OUTLETS[k]["gages"]].sum(axis=1, min_count=len(D.OUTLETS[k]["gages"])); m = dd[f"q_{k}"]

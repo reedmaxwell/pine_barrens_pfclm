@@ -18,15 +18,15 @@ from evaluate import metrics
 
 
 def main(names):
-    qo = pd.read_csv(os.path.join(ROOT, "inputs", "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
-    eo = pd.read_csv(os.path.join(ROOT, "inputs", "obs", f"ameriflux_et_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
+    qo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
+    eo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"ameriflux_et_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
     summer = lambda s: s[(s.index.month >= 6) & (s.index.month <= 9)]
     rows = []
     for k, o in D.OUTLETS.items():
         obs = qo[o["gages"]].sum(axis=1, min_count=len(o["gages"]))
         row = dict(outlet=k, obs_annual=obs.mean(), obs_summer=summer(obs).mean())
         for n in names:
-            d = pd.read_csv(os.path.join(ROOT, "results", f"{n}_daily.csv"), parse_dates=["date"]).set_index("date")
+            d = pd.read_csv(os.path.join(D.RESULTS, f"{n}_daily.csv"), parse_dates=["date"]).set_index("date")
             m = d[f"q_{k}"]; j = pd.concat([m.rename("m"), obs.rename("o")], axis=1).dropna(); mt = metrics(j.m.values, j.o.values)
             row.update({f"{n}_annual": m.mean(), f"{n}_summer": summer(m).mean(), f"{n}_NSE": mt.get("NSE", np.nan), f"{n}_KGE": mt.get("KGE", np.nan), f"{n}_spill": np.nanmean(d[f"spill_{k}"])})
         rows.append(row)
@@ -39,7 +39,7 @@ def main(names):
     print("spill share (bank faces / outlet discharge):"); print(t[[f"{n}_spill" for n in names]].to_string()); print()
     et = []
     for n in names:
-        d = pd.read_csv(os.path.join(ROOT, "results", f"{n}_daily.csv"), parse_dates=["date"]).set_index("date")
+        d = pd.read_csv(os.path.join(D.RESULTS, f"{n}_daily.csv"), parse_dates=["date"]).set_index("date")
         et.append({"run": n, **{s: (pd.concat([d[f"et_{s}"].rename("m"), eo[s].rename("o")], axis=1).dropna().pipe(lambda j: j.m.mean() - j.o.mean())) for s in D.TOWERS}})
     print("ET bias at the towers [mm/day], tower-valid days:"); print(pd.DataFrame(et).set_index("run").to_string())
 

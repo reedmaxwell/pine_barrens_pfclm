@@ -42,7 +42,7 @@ def water_table_depth(p, mask):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--cycles", type=int, default=4); ap.add_argument("--start", default=os.path.join(ROOT, "inputs", "static", "ss_pressure_head.pfb"))
+    ap.add_argument("--cycles", type=int, default=4); ap.add_argument("--start", default=os.path.join(D.INPUTS, "static", "ss_pressure_head.pfb"))
     ap.add_argument("--overland", default="kinematic"); ap.add_argument("--parflow-dir", default="/Users/reed/parflow/build_er_trial")
     ap.add_argument("--hours", type=int, default=8784); ap.add_argument("--first", type=int, default=1, help="first cycle number (to resume)")
     ap.add_argument("--clm-start", default=None, help="CLM restart to start cycle 1 from (default: cold start)")
@@ -52,15 +52,15 @@ def main():
     from parflow.tools.io import read_pfb
     env = dict(os.environ, PARFLOW_DIR=a.parflow_dir)
     run_py = os.path.join(a.parflow_dir, "py-env", "bin", "python")
-    states = os.path.join(ROOT, "runs", f"{a.tag}_states"); os.makedirs(states, exist_ok=True)
-    mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy"))
-    log_path = os.path.join(ROOT, "runs", f"{a.tag}_log.csv")
+    states = os.path.join(D.RUNS, f"{a.tag}_states"); os.makedirs(states, exist_ok=True)
+    mask = np.load(os.path.join(D.INPUTS, "static", "mask.npy"))
+    log_path = os.path.join(D.RUNS, f"{a.tag}_log.csv")
     log = pd.read_csv(log_path) if os.path.exists(log_path) else pd.DataFrame()
     ic, rst = a.start, a.clm_start
     if a.first > 1:
         ic = os.path.join(states, f"c{a.first - 1}_press.pfb"); rst = os.path.join(states, f"c{a.first - 1}_clm.rst")
     for k in range(a.first, a.cycles + 1):
-        name = f"{a.tag}_c{k}"; rd = os.path.join(ROOT, "runs", name)
+        name = f"{a.tag}_c{k}"; rd = os.path.join(D.RUNS, name)
         shutil.rmtree(rd, ignore_errors=True)
         cmd = [run_py, os.path.join(HERE, "run_pine_barrens.py"), "--hours", str(a.hours), "--name", name, "--overland", a.overland, "--ic", ic] + a.run_args.split()
         if rst:
@@ -77,7 +77,7 @@ def main():
         w0 = water_table_depth(p0, mask); w1 = water_table_depth(p1, mask)
         ev = subprocess.run([SUBSETTOOLS_PY, os.path.join(HERE, "evaluate.py"), rd], env=dict(env, PYTHONPATH=os.path.join(a.parflow_dir, "python")), capture_output=True, text=True)
         print("    " + "\n    ".join(l for l in ev.stdout.split("\n") if l and not l.startswith("  hour")), flush=True)
-        daily = pd.read_csv(os.path.join(ROOT, "results", f"{name}_daily.csv"))
+        daily = pd.read_csv(os.path.join(D.RESULTS, f"{name}_daily.csv"))
         row = dict(cycle=k, wall_s=round(time.time() - t0), wtd_median_start=np.nanmedian(w0[mask]), wtd_median_end=np.nanmedian(w1[mask]),
                    ponded_end=int((p1[-1][mask] > 0).sum()), top_pressure_max_end=float(p1[-1][mask].max()),
                    **{f"q_{o}": daily[f"q_{o}"].mean() for o in D.OUTLETS}, **{f"spill_{o}": daily[f"spill_{o}"].mean() for o in D.OUTLETS},
@@ -85,12 +85,12 @@ def main():
         log = pd.concat([log[log.cycle != k] if len(log) else log, pd.DataFrame([row])], ignore_index=True); log.to_csv(log_path, index=False)
         print(pd.DataFrame([row]).round(3).to_string(index=False), flush=True)
         if k > a.first:                                                          # prune the previous cycle's hourly output
-            prev = os.path.join(ROOT, "runs", f"{a.tag}_c{k - 1}")
+            prev = os.path.join(D.RUNS, f"{a.tag}_c{k - 1}")
             for f in glob.glob(os.path.join(prev, "*.out.press.*.pfb")) + glob.glob(os.path.join(prev, "*.out.evaptrans.*")) + glob.glob(os.path.join(prev, "*.out.clm_output.*")):
                 os.remove(f)
         ic, rst = os.path.join(states, f"c{k}_press.pfb"), os.path.join(states, f"c{k}_clm.rst")
-    os.makedirs(os.path.join(ROOT, "inputs", "initial"), exist_ok=True)
-    shutil.copy(ic, os.path.join(ROOT, "inputs", "initial", "ic_pressure.pfb")); shutil.copy(rst, os.path.join(ROOT, "inputs", "initial", "clm_restart.rst"))
+    os.makedirs(os.path.join(D.INPUTS, "initial"), exist_ok=True)
+    shutil.copy(ic, os.path.join(D.INPUTS, "initial", "ic_pressure.pfb")); shutil.copy(rst, os.path.join(D.INPUTS, "initial", "clm_restart.rst"))
     print("done; inputs/initial/ic_pressure.pfb and clm_restart.rst are cycle", a.cycles)
 
 

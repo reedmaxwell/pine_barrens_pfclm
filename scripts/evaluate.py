@@ -35,9 +35,10 @@ import matplotlib.pyplot as plt
 from parflow.tools.io import read_pfb
 from parflow.tools import hydrology as hy
 
-HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE); OBS = os.path.join(ROOT, "inputs", "obs"); STATIC = os.path.join(ROOT, "inputs", "static")
+HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import domain as D
+OBS = os.path.join(D.INPUTS, "obs"); STATIC = os.path.join(D.INPUTS, "static")
 DX = DY = 1000.0
 WY0 = pd.Timestamp(D.START)
 TZ_SHIFT = 5            # hours; Eastern Standard Time, the observations' clock
@@ -102,14 +103,18 @@ def main():
     sx = read_pfb(os.path.join(rd, f"{name}.out.slope_x.pfb"))[0]; sy = read_pfb(os.path.join(rd, f"{name}.out.slope_y.pfb"))[0]; mn = read_pfb(os.path.join(rd, f"{name}.out.mannings.pfb"))[0]
     sites = pd.read_csv(os.path.join(OBS, "sites.csv"), dtype={"site_id": str})
     faces = pd.read_csv(os.path.join(STATIC, "boundary_outflow_faces.csv"))
-    outlets = {k: faces[faces.outlet == k] for k in D.OUTLETS}
-    nested = sites[(sites.kind == "streamflow") & (sites.outlet.isna())]            # interior gages (Greenwood)
+    UNITS = getattr(D, "MASK_RULE", "outlets") == "units"
+    OUTLETS = {} if UNITS else D.OUTLETS
+    outlets = {k: faces[faces.outlet == k] for k in OUTLETS}
+    if UNITS:                                                                        # v2: the open faces, ocean and inland river exits, as a water-balance diagnostic
+        outlets = {"ocean": faces[faces.kind == "ocean"], "inland_exits": faces[faces.kind == "inland river exit"]}
+    nested = sites[(sites.kind == "streamflow") & (sites.outlet.isna() | UNITS)]    # interior gages: Greenwood in v1, every gage in v2
     towers = sites[sites.kind == "et_tower"]
     press = {int(f.split(".")[-2]): f for f in glob.glob(os.path.join(rd, f"{name}.out.press.*.pfb"))}
     clm = {int(f.split(".")[-3]): f for f in glob.glob(os.path.join(rd, f"{name}.out.clm_output.*.C.pfb"))}
     hours = sorted(h for h in press if h >= 1)
     ndays = local_day(hours[-1]) + 1
-    q = {k: np.zeros(ndays) for k in D.OUTLETS}; spill = {k: np.zeros(ndays) for k in D.OUTLETS}
+    q = {k: np.zeros(ndays) for k in outlets}; spill = {k: np.zeros(ndays) for k in outlets}
     qn = {s.site_id: np.zeros(ndays) for _, s in nested.iterrows()}
     leak = np.zeros(ndays); nq = np.zeros(ndays)
     et = {t.site_id: np.zeros(ndays) for _, t in towers.iterrows()}
@@ -159,14 +164,14 @@ def main():
     norm = lambda v: np.where(nq > 0, v / np.maximum(nq, 1), np.nan)
     dates = pd.date_range(WY0, periods=ndays)
     cols = {}
-    for k in D.OUTLETS:
+    for k in outlets:
         cols[f"q_{k}"] = norm(q[k]); cols[f"spill_{k}"] = np.where(q[k] > 0, spill[k] / np.maximum(q[k], 1e-12), np.nan)
     for sid in qn: cols[f"q_{sid}"] = norm(qn[sid])
     cols["leak_other_faces"] = norm(leak)
     for sid in et: cols[f"et_{sid}"] = et[sid]
     out = pd.DataFrame({"date": dates, **cols}).set_index("date")
-    os.makedirs(os.path.join(ROOT, "results"), exist_ok=True)
-    out.to_csv(os.path.join(ROOT, "results", f"{name}_daily.csv"))
+    os.makedirs(D.RESULTS, exist_ok=True)
+    out.to_csv(os.path.join(D.RESULTS, f"{name}_daily.csv"))
     # observations
     rows = []
     def paired(mcol, oser):
@@ -175,7 +180,7 @@ def main():
     qo_path = os.path.join(OBS, f"streamflow_daily_wy{D.WATER_YEAR}.csv")
     qo = pd.read_csv(qo_path, parse_dates=["date"]).set_index("date") if os.path.exists(qo_path) else None
     if qo is not None:
-        for k, o in D.OUTLETS.items():
+        for k, o in OUTLETS.items():
             if all(g in qo.columns for g in o["gages"]):
                 rows.append(dict(quantity=f"streamflow {k} ({'+'.join(o['gages'])}) [m3/s], daily", **metrics(*paired(f"q_{k}", qo[o["gages"]].sum(axis=1, min_count=len(o["gages"]))))))
         for sid in qn:
@@ -187,22 +192,29 @@ def main():
         for sid in et:
             if sid in eo.columns:
                 rows.append(dict(quantity=f"ET {sid} [mm/day], tower days", **metrics(*paired(f"et_{sid}", eo[sid]))))
-    print(f"mean spill share by outlet: " + ", ".join(f"{k} {np.nanmean(out[f'spill_{k}']):.2f}" for k in D.OUTLETS) + f"; mean outflow across other faces {np.nanmean(out['leak_other_faces']):.4f} m3/s")
+    if UNITS:
+        print("mean boundary outflow [m3/s]: " + ", ".join(f"{k} {np.nanmean(out[f'q_{k}']):.2f}" for k in outlets) + f"; across other faces {np.nanmean(out['leak_other_faces']):.4f}")
+    else:
+        print(f"mean spill share by outlet: " + ", ".join(f"{k} {np.nanmean(out[f'spill_{k}']):.2f}" for k in outlets) + f"; mean outflow across other faces {np.nanmean(out['leak_other_faces']):.4f} m3/s")
     tab = pd.DataFrame(rows).round(3) if rows else pd.DataFrame()
     if len(tab):
-        tab.to_csv(os.path.join(ROOT, "results", f"{name}_scores.csv"), index=False); print(tab.to_string(index=False))
+        tab.to_csv(os.path.join(D.RESULTS, f"{name}_scores.csv"), index=False); print(tab.to_string(index=False))
     else:
         print("no observations on disk (run scripts/get_obs.py); daily table written")
     # figure
-    n = len(D.OUTLETS) + len(et)
+    panels = list(OUTLETS.items()) if not UNITS else [(sid, None) for sid in list(qn)[:6]]
+    n = len(panels) + len(et)
     fig, ax = plt.subplots(n, 1, figsize=(10, 2.4 * n), constrained_layout=True)
-    for x, (k, o) in zip(ax, D.OUTLETS.items()):
+    for x, (k, o) in zip(ax, panels):
+        if o is None:                                                                  # a gage cell
+            if qo is not None and k in qo.columns: x.plot(qo.index, qo[k], "k", lw=1, label=f"USGS {k}")
+            x.plot(out.index, out[f"q_{k}"], "C0", lw=1, label=f"model {k} (gage cell)"); x.set_ylabel("m3/s"); continue
         if qo is not None and all(g in qo.columns for g in o["gages"]):
             x.plot(qo.index, qo[o["gages"]].sum(axis=1, min_count=len(o["gages"])), "k", lw=1, label="USGS " + "+".join(o["gages"]))
         x.plot(out.index, out[f"q_{k}"], "C0", lw=1, label=f"model {k} (outlet + bank spill)")
         x.plot(out.index, out[f"q_{k}"] * (1 - out[f"spill_{k}"].fillna(0)), "C0", lw=0.7, ls="--", label="outlet face only")
         x.set_ylabel("m3/s")
-    for x, sid in zip(ax[len(D.OUTLETS):], et):
+    for x, sid in zip(ax[len(panels):], et):
         if eo is not None and sid in eo.columns:
             x.plot(eo.index, eo[sid], "k.", ms=3, label=f"tower {sid}")
         x.plot(out.index, out[f"et_{sid}"], "C0", lw=1, label=f"model {sid}" + (" (nearest active cell)" if not bool(towers[towers.site_id == sid].in_mask.iloc[0]) else ""))
@@ -210,7 +222,7 @@ def main():
     for x in ax:
         x.legend(frameon=False, fontsize=8); x.grid(alpha=0.3); x.set_xlim(WY0, WY0 + pd.Timedelta(days=ndays))
     fig.suptitle(f"Pine Barrens WY{D.WATER_YEAR}: {name}")
-    fig.savefig(os.path.join(ROOT, "results", f"{name}_evaluation.png"), dpi=130)
+    fig.savefig(os.path.join(D.RESULTS, f"{name}_evaluation.png"), dpi=130)
     print("wrote results/" + f"{name}_daily.csv, {name}_scores.csv, {name}_evaluation.png")
 
 

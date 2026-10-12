@@ -47,15 +47,15 @@ def main():
     if not (a.forcing or a.ic):
         a.forcing = a.ic = True
     if a.ic:
-        os.makedirs(os.path.join(ROOT, "inputs", "initial"), exist_ok=True)
+        os.makedirs(os.path.join(D.INPUTS, "initial"), exist_ok=True)
         src = os.path.join(a.t7, "huc0204_wy2008_c0_v2", "HUC0204.out.press.08784.pfb")
-        clip(src, os.path.join(ROOT, "inputs", "initial", "ic_pressure_delaware_h8784.pfb"))
-        p = read_pfb(os.path.join(ROOT, "inputs", "initial", "ic_pressure_delaware_h8784.pfb"))
-        mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy"))
+        clip(src, os.path.join(D.INPUTS, "initial", "ic_pressure_delaware_h8784.pfb"))
+        p = read_pfb(os.path.join(D.INPUTS, "initial", "ic_pressure_delaware_h8784.pfb"))
+        mask = np.load(os.path.join(D.INPUTS, "static", "mask.npy"))
         top = p[-1][mask]
         print(f"initial pressure clipped from {src}: shape {p.shape}; top-layer over the mask: min {top.min():.2f} median {np.median(top):.2f} max {top.max():.2f} m, ponded cells {(top > 0).sum()}")
     if a.forcing:
-        out = os.path.join(ROOT, "inputs", "forcing", f"wy{D.WATER_YEAR}"); os.makedirs(out, exist_ok=True)
+        out = os.path.join(D.INPUTS, "forcing", f"wy{D.WATER_YEAR}"); os.makedirs(out, exist_ok=True)
         files = sorted(glob.glob(os.path.join(a.t7, "inputs", "forcing", f"wy{D.WATER_YEAR}", "CW3E.*.pfb")))
         print(f"{len(files)} forcing files")
         for n, f in enumerate(files):

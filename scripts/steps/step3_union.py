@@ -26,8 +26,8 @@ z = np.load(os.path.join(ROOT, "results", "context_fields.npz")); b = tuple(int(
 e = np.load(os.path.join(ROOT, "results", "context_exits.npz")); fd = e["fd"]
 land = np.nan_to_num(z["mask"], nan=0) > 0; da = np.where(land, z["drainage_area"], np.nan)
 sb = np.where(land, z["subbasins"], np.nan); ny, nx = land.shape; m = D.IJ_BOUNDS[0] - b[0]
-mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
-sites = pd.read_csv(os.path.join(ROOT, "inputs", "obs", "sites.csv"), dtype={"site_id": str})
+mask = np.load(os.path.join(ROOT, "inputs", "v1", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
+sites = pd.read_csv(os.path.join(ROOT, "inputs", "v1", "obs", "sites.csv"), dtype={"site_id": str})
 D4 = {1: (0, -1), 2: (-1, 0), 3: (0, 1), 4: (1, 0)}
 NAMES = {25139: "N Br Rancocas (to below Pemberton)", 24992: "S Br Rancocas (Vincentown)", 24927: "lower Rancocas link", 24622: "Oswego", 24667: "W Br Wading",
          25413: "Toms River", 25154: "Cedar Creek", 0: "Barnegat Bay strip (direct drainages)", 25410: "NW Delaware unit (Crosswicks side)", 25516: "Metedeconk", 24618: "upper Mullica",

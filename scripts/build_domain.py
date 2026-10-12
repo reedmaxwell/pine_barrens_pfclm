@@ -40,6 +40,7 @@ Steps
   8. barrier     pf_flowbarrier_42m.pfb: the CONUS2.1 barrier moved from 7 m to 42 m (a test variant)
 """
 import argparse
+import glob
 import os
 import shutil
 import subprocess
@@ -53,10 +54,11 @@ HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import domain as D
 
-STATIC = os.path.join(ROOT, "inputs", "static"); RAW = os.path.join(STATIC, "raw_subset")
-CLM = os.path.join(ROOT, "inputs", "clm"); OBS = os.path.join(ROOT, "inputs", "obs")
+STATIC = os.path.join(D.INPUTS, "static"); RAW = os.path.join(STATIC, "raw_subset")
+CLM = os.path.join(D.INPUTS, "clm"); OBS = os.path.join(D.INPUTS, "obs")
 EAST_RIVER = os.path.join(os.path.dirname(ROOT), "east_river_pfclm")
-DELAWARE_VEGP = "/Volumes/T7/data/huc0204_transient/inputs/drivers/drv_vegp.dat"   # copied into inputs/clm; the T7 is only needed to rebuild
+DELAWARE_VEGP = "/Volumes/T7/data/huc0204_transient/inputs/drivers/drv_vegp.dat"   # the Delaware bed's file; the copy in inputs/v1/clm is used when the T7 is not mounted
+if not os.path.exists(DELAWARE_VEGP): DELAWARE_VEGP = os.path.join(ROOT, "inputs", "v1", "clm", "drv_vegp.dat")
 MASK_NPY = os.path.join(STATIC, "mask.npy")
 D4 = {1: (0, -1), 2: (-1, 0), 3: (0, 1), 4: (1, 0)}          # direction -> (di, dj) of the receiver
 FACES = [("E", (1, 0), "x", -1), ("W", (-1, 0), "x", +1), ("N", (0, 1), "y", -1), ("S", (0, -1), "y", +1)]
@@ -94,6 +96,8 @@ def components_d4(mask):
 def step_delineate(force):
     if not force and os.path.exists(MASK_NPY):
         print("mask present; skip"); return
+    if getattr(D, "MASK_RULE", "outlets") == "units":
+        return delineate_units()
     import hf_hydrodata as hf
     os.makedirs(STATIC, exist_ok=True)
     m = 6                                                   # margin: prove the watersheds fit the box
@@ -119,6 +123,63 @@ def step_delineate(force):
         f.write(",".join(str(v) for v in D.IJ_BOUNDS))
     tab.to_csv(os.path.join(STATIC, "delineation.csv"), index=False)
     r_check(fd[m:-m, m:-m], mask)
+
+
+def touches(a, bm):
+    """do masks a and b share a 4-neighbour face"""
+    return any(np.any(a & np.roll(bm, sh, axis=ax)) for sh, ax in ((1, 0), (-1, 0), (1, 1), (-1, 1)))
+
+
+def delineate_units():
+    """the v2 rule: complete CONUS2 subbasin units, the direct-to-bay catchments between them, excluded units
+    cut out along their divides.  Saves mask.npy, flow_direction.npy, water.npy (CONUS2 water cells in the box),
+    exits.csv (every in-mask cell whose D4 receiver is off-mask: ocean or inland), ij_bounds.txt."""
+    import hf_hydrodata as hf
+    os.makedirs(STATIC, exist_ok=True)
+    m = 6; b = (D.IJ_BOUNDS[0] - m, D.IJ_BOUNDS[1] - m, D.IJ_BOUNDS[2] + m, D.IJ_BOUNDS[3] + m)
+    g = lambda v: np.squeeze(hf.get_gridded_data(dataset="conus2_domain", variable=v, grid="conus2", grid_bounds=list(b)))
+    fd = g("flow_direction"); sb = g("subbasins"); land = np.nan_to_num(g("mask"), nan=0) > 0; da = g("drainage_area")
+    sbn = np.nan_to_num(sb, nan=-1); ny, nx = land.shape
+    core = np.isin(sbn, D.CORE_UNITS) & land
+    strip = (sbn == D.BAY_STRIP_UNIT) & land
+    # the bay strip split into its catchments (one per ocean exit cell)
+    catch = []
+    for j, i in zip(*np.where(strip)):
+        d = int(fd[j, i]) if np.isfinite(fd[j, i]) else 0
+        if d not in D4: continue
+        di, dj = D4[d]; ni, nj = i + di, j + dj
+        if 0 <= ni < nx and 0 <= nj < ny and not land[nj, ni]:
+            c = upstream(fd, i, j) & strip
+            if c.sum(): catch.append(c)
+    jmax = int(np.where((sbn == D.BAY_NORTH_LIMIT_UNIT) & land)[0].max()); jmin = int(np.where(core)[0].min())
+    dom = core.copy(); kept = []; changed = True
+    while changed:
+        changed = False
+        for k, c in enumerate(catch):
+            if k not in kept and touches(c, dom) and int(np.where(c)[0].max()) <= jmax and int(np.where(c)[0].min()) >= jmin:
+                kept.append(k); dom |= c; changed = True
+    excl = np.isin(sbn, D.EXCLUDED_UNITS) & land
+    assert not (dom & excl).any()
+    jj, ii = np.where(dom)
+    assert ii.min() >= m and jj.min() >= m and ii.max() < nx - m and jj.max() < ny - m, f"the union touches the margin: box too small (i {ii.min()}-{ii.max()}, j {jj.min()}-{jj.max()} in a {nx}x{ny} frame with margin {m})"
+    mask = dom[m:-m, m:-m]; fdb = fd[m:-m, m:-m]; water = ~land[m:-m, m:-m]
+    assert mask.shape == (D.NY, D.NX) and components_d4(mask) == 1
+    rows = []
+    for j, i in zip(*np.where(mask)):
+        d = int(fdb[j, i]) if np.isfinite(fdb[j, i]) else 0
+        if d not in D4: continue
+        di, dj = D4[d]; ni, nj = i + di, j + dj
+        inside = 0 <= ni < D.NX and 0 <= nj < D.NY
+        if inside and mask[nj, ni]: continue
+        kind = "ocean" if (inside and water[nj, ni]) else "inland"           # an exit on the box edge is an inland river exit too
+        rows.append(dict(local_i=i, local_j=j, face={(0, -1): "S", (-1, 0): "W", (0, 1): "N", (1, 0): "E"}[(di, dj)], kind=kind, at_box_edge=not inside, drainage_km2=float(da[m + j, m + i])))
+    ex = pd.DataFrame(rows)
+    print(f"units: {len(D.CORE_UNITS)} core ({int(core.sum())} cells), bay catchments kept {len(kept)} of {len(catch)} ({int(sum(catch[k].sum() for k in kept))} cells); mask {int(mask.sum())} active cells of {mask.size}")
+    print(f"exits: ocean {int((ex.kind == 'ocean').sum())} cells; inland river exits: " + ", ".join(f"({r.local_i},{r.local_j}) {r.drainage_km2:.0f} km2" for r in ex[ex.kind == "inland"].sort_values("drainage_km2", ascending=False).itertuples()))
+    np.save(MASK_NPY, mask); np.save(os.path.join(STATIC, "flow_direction.npy"), fdb); np.save(os.path.join(STATIC, "water.npy"), water)
+    np.save(os.path.join(STATIC, "subbasins.npy"), np.nan_to_num(sb[m:-m, m:-m], nan=-1).astype(int))
+    ex.to_csv(os.path.join(STATIC, "exits.csv"), index=False)
+    with open(os.path.join(STATIC, "ij_bounds.txt"), "w") as f: f.write(",".join(str(v) for v in D.IJ_BOUNDS))
 
 
 def r_check(fd, mask):
@@ -226,13 +287,25 @@ def step_slopes(force):
     mask = np.load(MASK_NPY); fd = np.load(os.path.join(STATIC, "flow_direction.npy"))
     sx0 = read_pfb(os.path.join(RAW, "slope_x.pfb"))[0].astype(np.float64); sy0 = read_pfb(os.path.join(RAW, "slope_y.pfb"))[0].astype(np.float64)
     sx, sy = sx0.copy(), sy0.copy()
-    # the outlet faces: each outlet cell keeps the face toward its D4 receiver (off-mask by construction)
-    outlets = [D.local(o["conus2_i"], o["conus2_j"]) for o in D.OUTLETS.values()]
     face_of = {(0, -1): "S", (-1, 0): "W", (0, 1): "N", (1, 0): "E"}
-    outlet_faces = set()
-    for (i, j), key in zip(outlets, D.OUTLETS):
-        di, dj = D4[int(fd[j, i])]; outlet_faces.add((i, j, face_of[(di, dj)]))
-        assert not (0 <= i + di < D.NX and 0 <= j + dj < D.NY and mask[j + dj, i + di]), f"outlet {key} drains to an in-mask cell"
+    outlet_faces = set(); ocean_faces = set()
+    if getattr(D, "MASK_RULE", "outlets") == "units":
+        # v2: the exits are every cell whose receiver is off-mask (exits.csv); ocean faces are every open face onto a water cell
+        ex = pd.read_csv(os.path.join(STATIC, "exits.csv")); water = np.load(os.path.join(STATIC, "water.npy"))
+        outlets = [(int(r.local_i), int(r.local_j)) for r in ex[ex.kind == "inland"].itertuples()]
+        for r in ex.itertuples():                      # an exit cell keeps every outward face: zeroing a side face strands the cell upstream of it
+            for face, _, _, _ in FACES: outlet_faces.add((int(r.local_i), int(r.local_j), face))
+        for j, i in zip(*np.where(mask)):
+            for face, (di, dj), _, _ in FACES:
+                ni, nj = i + di, j + dj
+                if 0 <= ni < D.NX and 0 <= nj < D.NY and water[nj, ni]: ocean_faces.add((i, j, face))
+        outlet_faces |= ocean_faces
+    else:
+        # v1: each outlet cell keeps the face toward its D4 receiver (off-mask by construction)
+        outlets = [D.local(o["conus2_i"], o["conus2_j"]) for o in D.OUTLETS.values()]
+        for (i, j), key in zip(outlets, D.OUTLETS):
+            di, dj = D4[int(fd[j, i])]; outlet_faces.add((i, j, face_of[(di, dj)]))
+            assert not (0 <= i + di < D.NX and 0 <= j + dj < D.NY and mask[j + dj, i + di]), f"outlet {key} drains to an in-mask cell"
     # exceptions: the outlet faces and every open face of a CONUS2 river cell (see the docstring)
     rm_path = os.path.join(STATIC, "river_mask.npy")
     if not os.path.exists(rm_path):
@@ -240,33 +313,57 @@ def step_slopes(force):
         rm = np.nan_to_num(np.squeeze(hf.get_gridded_data(dataset="conus2_domain", variable="river_mask", grid_bounds=list(D.IJ_BOUNDS))), nan=0).astype(int)
         np.save(rm_path, rm)
     river = np.load(rm_path).astype(bool) & mask
+    if getattr(D, "MASK_RULE", "outlets") == "units": river[:] = False          # v2: no river-cell exemption; inland edges are divides
     before = census(sx0, sy0, mask, outlet_faces)
     before["river"] = [bool(river[j, i]) for i, j in zip(before.local_i, before.local_j)]
     before["keep"] = before.is_outlet | before.river
     fix = before[(before.direction == "outward") & (~before.keep)]
     for r in fix.itertuples():
         (sx if r.axis == "x" else sy)[r.local_j, r.local_i] = 0.0
+    # a zeroed component that was the only outflow of the cell upstream of it strands that cell (ParFlow's
+    # face ownership: sx[j,i] is the face between i and i+1, sy[j,i] between j and j+1).  Restore such
+    # components and record them as accepted leaks, until no cell is stranded.
+    sinks0 = set((i, j) for j, i in zip(*np.where(mask)) if not outflow_faces(sx0, sy0, mask, i, j))
+    accepted = []
+    while True:
+        stranded = [(i, j) for j, i in zip(*np.where(mask)) if (i, j) not in sinks0 and not outflow_faces(sx, sy, mask, i, j)]
+        if not stranded: break
+        for (i, j) in stranded:
+            cand = [(i, j - 1, "y", "S"), (i - 1, j, "x", "W")]                     # the south neighbour's sy, the west neighbour's sx
+            hit = [(ni, nj, ax, f) for ni, nj, ax, f in cand if ((fix.local_i == ni) & (fix.local_j == nj) & (fix.axis == ax)).any()]
+            if not hit: raise SystemExit(f"stranded cell {(i, j)} with no zeroed component to restore")
+            ni, nj, ax, f = hit[0]; row = fix[(fix.local_i == ni) & (fix.local_j == nj) & (fix.axis == ax)].iloc[0]
+            (sx if ax == "x" else sy)[nj, ni] = row.slope; outlet_faces.add((int(ni), int(nj), row.face)); accepted.append((int(ni), int(nj), row.face, float(row.slope)))
+            fix = fix.drop(row.name)
+    if accepted:
+        print(f"accepted leaks (components restored so no cell is stranded): {accepted}")
     after = census(sx, sy, mask, outlet_faces)
     after["river"] = [bool(river[j, i]) for i, j in zip(after.local_i, after.local_j)]
     rem = after[after.direction == "outward"]
     gate1 = bool((rem.is_outlet | rem.river).all())
     # the kept outward faces, each assigned to the outlet whose watershed holds the cell
-    wsh = {key: upstream(fd, *D.local(o["conus2_i"], o["conus2_j"])) for key, o in D.OUTLETS.items()}
-    kept = rem.copy(); kept["outlet"] = [next(k for k, w in wsh.items() if w[j, i]) for i, j in zip(kept.local_i, kept.local_j)]
-    kept["kind"] = np.where(kept.is_outlet, "outlet", "river bank spill")
+    kept = rem.copy()
+    if getattr(D, "MASK_RULE", "outlets") == "units":
+        acc = set((i, j, f) for i, j, f, _ in accepted)
+        kept["outlet"] = ""; kept["kind"] = ["ocean" if (int(i), int(j), f) in ocean_faces else ("accepted leak" if (int(i), int(j), f) in acc else "inland river exit") for i, j, f in zip(kept.local_i, kept.local_j, kept.face)]
+    else:
+        wsh = {key: upstream(fd, *D.local(o["conus2_i"], o["conus2_j"])) for key, o in D.OUTLETS.items()}
+        kept["outlet"] = [next(k for k, w in wsh.items() if w[j, i]) for i, j in zip(kept.local_i, kept.local_j)]
+        kept["kind"] = np.where(kept.is_outlet, "outlet", "river bank spill")
     kept[["local_i", "local_j", "face", "axis", "slope", "kind", "outlet"]].to_csv(os.path.join(STATIC, "boundary_outflow_faces.csv"), index=False)
     # kinematic sinks: in-mask cells with no outflow face, before and after
     sinks0 = [(i, j) for j, i in zip(*np.where(mask)) if not outflow_faces(sx0, sy0, mask, i, j)]
     sinks1 = [(i, j) for j, i in zip(*np.where(mask)) if not outflow_faces(sx, sy, mask, i, j)]
     new_sinks = sorted(set(sinks1) - set(sinks0))
     gate2 = len(new_sinks) == 0
-    # trace: the fixed slopes must reproduce the delineation
-    rec = receivers_from_slopes(sx, sy, mask); traced = trace_from_outlets(rec, mask, outlets)
+    # trace: the fixed slopes must reproduce the delineation; the trace starts from every cell that keeps an open face
+    trace_outlets = sorted(set((i, j) for i, j, _ in outlet_faces)) if getattr(D, "MASK_RULE", "outlets") == "units" else outlets
+    rec = receivers_from_slopes(sx, sy, mask); traced = trace_from_outlets(rec, mask, trace_outlets)
     missed = int((mask & ~traced).sum()); extra = int((traced & ~mask).sum())
-    rec0 = receivers_from_slopes(sx0, sy0, mask); traced0 = trace_from_outlets(rec0, mask, outlets)
-    defectors = [(i, j) for (i, j), r in rec.items() if (i, j) not in outlets and (r is None or not mask[r[1], r[0]])]
+    rec0 = receivers_from_slopes(sx0, sy0, mask); traced0 = trace_from_outlets(rec0, mask, trace_outlets)
+    defectors = [(i, j) for (i, j), r in rec.items() if (i, j) not in trace_outlets and (r is None or not mask[r[1], r[0]])]
     pits = [c for (c, r) in rec.items() if r is None]
-    river_kept = set((int(i), int(j)) for i, j in zip(kept.local_i, kept.local_j))
+    river_kept = set((int(i), int(j)) for i, j in zip(kept.local_i, kept.local_j)) | set(trace_outlets)
     # the steepest face of a river cell whose bank spill we kept may be that bank face; nothing else may leave
     gate3 = len(pits) == 0 and all(c in river_kept for c in defectors)
     rep = [
@@ -275,7 +372,7 @@ def step_slopes(force):
         f"boundary faces: {len(before)}; before zero/inward/outward {int((before.direction == 'zero').sum())}/{int((before.direction == 'inward').sum())}/{int((before.direction == 'outward').sum())}; "
         f"after {int((after.direction == 'zero').sum())}/{int((after.direction == 'inward').sum())}/{int((after.direction == 'outward').sum())}",
         f"outlet faces kept: {sorted(outlet_faces)}",
-        f"river-cell outward faces kept (bank spill, scored with their outlet): {int((rem.river & ~rem.is_outlet).sum())}",
+        f"faces kept open: {len(outlet_faces)} ({len(ocean_faces)} ocean, {len(outlet_faces) - len(ocean_faces)} river exits); river-cell bank faces kept: {int((rem.river & ~rem.is_outlet).sum())}",
         f"GATE 1 outward faces only at outlets and river cells: {'PASS' if gate1 else 'FAIL'}",
         f"kinematic sinks (in-mask cells with no outflow face): raw {len(sinks0)} {sinks0[:12]}, fixed {len(sinks1)}, new {new_sinks}",
         f"GATE 2 no new sinks: {'PASS' if gate2 else 'FAIL'}",
@@ -324,18 +421,40 @@ def step_clm(force):
 
 
 # ---------------------------------------------------------------------------- 5. sites
+def discover_gages(mask):
+    """v2: every USGS daily-flow gage whose HydroData cell is in the mask and whose network area is within 25 % of USGS"""
+    import hf_hydrodata as hf
+    lat = np.squeeze(hf.get_gridded_data(dataset="conus2_domain", variable="latitude", grid="conus2", grid_bounds=list(D.IJ_BOUNDS)))
+    lon = np.squeeze(hf.get_gridded_data(dataset="conus2_domain", variable="longitude", grid="conus2", grid_bounds=list(D.IJ_BOUNDS)))
+    da = np.squeeze(hf.get_gridded_data(dataset="conus2_domain", variable="drainage_area", grid="conus2", grid_bounds=list(D.IJ_BOUNDS)))
+    md = hf.get_point_metadata(dataset="usgs_nwis", variable="streamflow", temporal_resolution="daily", aggregation="mean",
+                               latitude_range=(float(np.nanmin(lat)), float(np.nanmax(lat))), longitude_range=(float(np.nanmin(lon)), float(np.nanmax(lon))),
+                               date_start=D.START, date_end=D.END)
+    out = {}
+    for r in md.itertuples():
+        if not (np.isfinite(r.conus2_i) and np.isfinite(r.conus2_j)): continue
+        i, j = D.local(int(r.conus2_i), int(r.conus2_j))
+        if not (0 <= i < D.NX and 0 <= j < D.NY and mask[j, i]): continue
+        usgs = float(r.usgs_drainage_area) * 2.58999 if np.isfinite(r.usgs_drainage_area) else np.nan
+        model = float(da[j, i]); ok = np.isfinite(usgs) and usgs >= 20 and abs(model - usgs) / usgs <= 0.25
+        print(f"  {r.site_id} {r.site_name[:44]:44s} cell ({i:2d},{j:2d}) USGS {usgs:6.0f} km2, network {model:6.0f}  {'kept' if ok else 'dropped'}")
+        if ok: out[r.site_id] = dict(conus2_i=int(r.conus2_i), conus2_j=int(r.conus2_j), usgs_km2=round(usgs), name=r.site_name)
+    return out
+
+
 def step_sites(force):
     os.makedirs(OBS, exist_ok=True); mask = np.load(MASK_NPY); rows = []
-    for gid, g in D.GAGES.items():
+    gages = discover_gages(mask) if getattr(D, "MASK_RULE", "outlets") == "units" else D.GAGES
+    for gid, g in gages.items():
         i, j = D.local(g["conus2_i"], g["conus2_j"])
-        outlet = [k for k, o in D.OUTLETS.items() if gid in o["gages"]]
+        outlet = [k for k, o in getattr(D, "OUTLETS", {}).items() if gid in o["gages"]]
         rows.append(dict(kind="streamflow", site_id=gid, site_name=g["name"], conus2_i=g["conus2_i"], conus2_j=g["conus2_j"], local_i=i, local_j=j,
                          in_mask=bool(mask[j, i]), units="m3/s", usgs_km2=g["usgs_km2"], outlet=outlet[0] if outlet else "", note=""))
     for tid, t in D.TOWERS.items():
         i, j = D.local(t["conus2_i"], t["conus2_j"])
         rows.append(dict(kind="et_tower", site_id=tid, site_name=t["name"], conus2_i=t["conus2_i"], conus2_j=t["conus2_j"], local_i=i, local_j=j,
                          in_mask=bool(mask[j, i]), units="mm/day", usgs_km2="", outlet="", note=f"AmeriFlux {t['igbp']}"))
-    for key, o in D.OUTLETS.items():
+    for key, o in getattr(D, "OUTLETS", {}).items():
         i, j = D.local(o["conus2_i"], o["conus2_j"])
         rows.append(dict(kind="outlet", site_id=key, site_name=o["name"], conus2_i=o["conus2_i"], conus2_j=o["conus2_j"], local_i=i, local_j=j,
                          in_mask=bool(mask[j, i]), units="m3/s", usgs_km2=o["usgs_km2"], outlet=key, note="scored against " + "+".join(o["gages"])))
@@ -390,6 +509,45 @@ def step_mannings(force, river_n=0.15, min_hill_n=0.10):
 
 
 # ---------------------------------------------------------------------------- 8. barrier
+def step_barrier_geology(force):
+    """the geology-keyed barrier: in each column, going down from the base of the sand, the 0.001 multiplier goes on
+    the face above the first layer whose unit is not g4 or g5 (the Cohansey stand-ins): 17 m, 42 m or 92 m here.
+    Columns that are g4/g5 all the way to the 100 m layer get it at 92 m.  Written to pf_flowbarrier_geology.pfb."""
+    from parflow.tools.io import read_pfb, write_pfb
+    import deck
+    out = os.path.join(STATIC, "pf_flowbarrier_geology.pfb")
+    if not force and os.path.exists(out):
+        print("geology barrier present; skip"); return
+    mask = np.load(MASK_NPY); fb = read_pfb(os.path.join(STATIC, "pf_flowbarrier.pfb")); ind = np.nan_to_num(read_pfb(os.path.join(STATIC, "pf_indicator.pfb")), nan=0).astype(int)
+    dz = np.array(deck.DZ_SCALE) * 200.0; new = np.where(np.isnan(fb), fb, 1.0); depth = np.full(mask.shape, np.nan)
+    cohansey = (deck.INDICATOR["g4"], deck.INDICATOR["g5"])
+    for j, i in zip(*np.where(mask)):
+        k = next((k for k in (4, 3, 2, 1) if ind[k, j, i] not in cohansey), 1)
+        new[k, j, i] = 0.001; depth[j, i] = dz[k + 1:].sum()
+    write_pfb(out, new, p=1, q=1, r=1, dx=1000.0, dy=1000.0, dz=200.0, z_first=True, dist=False)
+    vals, cnt = np.unique(depth[mask], return_counts=True)
+    print("geology-keyed barrier depths over the mask: " + ", ".join(f"{v:.0f} m x{c}" for v, c in zip(vals, cnt)) + f"; wrote {out}")
+    np.save(os.path.join(STATIC, "barrier_depth.npy"), depth)
+
+
+def step_forcing(force):
+    """WY forcing from HydroData (CW3E, hourly, 24 steps per file) for the box, with .dist files."""
+    import subsettools as st
+    from parflow.tools.io import read_pfb, write_pfb
+    out = os.path.join(D.INPUTS, "forcing", f"wy{D.WATER_YEAR}")
+    if not force and glob.glob(os.path.join(out, "CW3E.APCP.*.pfb")):
+        print("forcing present; skip"); return
+    os.makedirs(out, exist_ok=True)
+    st.subset_forcing(D.IJ_BOUNDS, grid=D.GRID, start=D.START, end=D.END, dataset="CW3E", write_dir=out, time_zone="UTC")
+    files = sorted(glob.glob(os.path.join(out, "CW3E.*.pfb")))
+    for f in files:                                          # rewrite with distribution files; fill values outside land get the step mean
+        a = read_pfb(f); bad = a < -1e30
+        if bad.any():
+            for k in range(a.shape[0]): a[k][bad[k]] = a[k][~bad[k]].mean()
+        write_pfb(f, np.ascontiguousarray(a).astype(np.float64), p=1, q=1, r=1, dx=1000.0, dy=1000.0, dz=1000.0, dist=True)
+    print(f"forcing: {len(files)} files in {out}")
+
+
 def step_barrier(force, layer=2):
     """the flow-barrier variant: the CONUS2.1 barrier is a 0.001 multiplier on the flux across the face above
     layer 4 (7 m down) in 1,235 of 1,246 cells.  Move it to the face above `layer` (2: 42 m down, the base of
@@ -408,7 +566,7 @@ def step_barrier(force, layer=2):
     print(f"barrier moved from 7 m to {depth:.0f} m in {int(moved.sum())} cells; wrote {out}")
 
 
-STEPS = {"delineate": step_delineate, "statics": step_statics, "slopes": step_slopes, "clm": step_clm, "sites": step_sites, "urban": step_urban, "mannings": step_mannings, "barrier": step_barrier}
+STEPS = {"delineate": step_delineate, "statics": step_statics, "slopes": step_slopes, "clm": step_clm, "sites": step_sites, "urban": step_urban, "mannings": step_mannings, "barrier": step_barrier, "barrier_geology": step_barrier_geology, "forcing": step_forcing}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--force", action="store_true"); ap.add_argument("--step", choices=list(STEPS))

@@ -20,6 +20,7 @@ from parflow.tools.io import read_pfb, write_pfb
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import domain as D
 import deck
 DZ_TOP = 200.0 * deck.DZ_SCALE[-1]
 
@@ -29,11 +30,11 @@ def read_pfidb(path):
 
 
 def main():
-    ap = argparse.ArgumentParser(); ap.add_argument("rundir"); ap.add_argument("--out", default=os.path.join(ROOT, "inputs", "static", "pme_coupled.pfb"))
+    ap = argparse.ArgumentParser(); ap.add_argument("rundir"); ap.add_argument("--out", default=os.path.join(D.INPUTS, "static", "pme_coupled.pfb"))
     a = ap.parse_args(); rd = a.rundir
     name = os.path.basename(glob.glob(os.path.join(rd, "*.pfidb"))[0])[:-6]
     keys = read_pfidb(os.path.join(rd, f"{name}.pfidb")); fdir = keys["Solver.CLM.MetFilePath"]
-    mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy"))
+    mask = np.load(os.path.join(D.INPUTS, "static", "mask.npy"))
     clm = sorted(glob.glob(os.path.join(rd, f"{name}.out.clm_output.*.C.pfb"))); hours = len(clm)
     P = np.zeros(mask.shape); ET = np.zeros(mask.shape)
     for f in sorted(glob.glob(os.path.join(fdir, "CW3E.APCP.*.pfb")))[: (hours + 23) // 24]:

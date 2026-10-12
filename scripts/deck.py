@@ -62,18 +62,19 @@ def domain_and_units(run, urban=True):
         run.GeomInput[name].Value = val
 
 
-def subsurface(run, urban=True, geology_k_scale=1.0, flow_barrier=True, geology_aniso=None, horizontal_only=False, flow_barrier_file="pf_flowbarrier.pfb"):
+def subsurface(run, urban=True, geology_k_scale=1.0, flow_barrier=True, geology_aniso=None, horizontal_only=False, flow_barrier_file="pf_flowbarrier.pfb", k_units=None):
     """geology_k_scale multiplies the permeability of the geology units g1-g8 (not the bedrock b1, b2
     and not the soils); flow_barrier=False drops the CONUS2.1 vertical flow barrier (a 0.001
     multiplier at the base of layer 5, about 7 m down, over this whole box)."""
     soils = dict(SOILS)
     if urban:
         soils.update({f"u{k}": (SOILS[f"s{k}"][0] * URBAN_KTOP,) + SOILS[f"s{k}"][1:] for k in range(1, 14)})
-    geology = {n: ((v[0] * geology_k_scale if n.startswith("g") else v[0]),) + v[1:] for n, v in GEOLOGY.items()}
+    scaled = set(k_units) if k_units else {n for n in GEOLOGY if n.startswith("g")}      # which units the scale applies to
+    geology = {n: ((v[0] * geology_k_scale if n in scaled else v[0]),) + v[1:] for n, v in GEOLOGY.items()}
     if geology_aniso is not None:          # vertical / horizontal permeability in the units that have a ratio (0.1 as shipped)
         geology = {n: (v[0], v[1], (geology_aniso if v[2] is not None else None)) for n, v in geology.items()}
     if horizontal_only and geology_k_scale != 1.0:   # scale x and y only: divide the vertical ratio by the scale (isotropic units get one)
-        geology = {n: (v[0], v[1], ((v[2] if v[2] is not None else 1.0) / geology_k_scale if n.startswith("g") else v[2])) for n, v in geology.items()}
+        geology = {n: (v[0], v[1], ((v[2] if v[2] is not None else 1.0) / geology_k_scale if n in scaled else v[2])) for n, v in geology.items()}
     run.Geom.Perm.Names = "domain " + " ".join(list(soils) + list(geology))
     run.Geom.domain.Perm.Type = "Constant"
     run.Geom.domain.Perm.Value = 0.02      # fallback where the indicator has no class

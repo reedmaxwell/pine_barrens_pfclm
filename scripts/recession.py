@@ -64,17 +64,17 @@ def solve(a1, a3, A, L, f):
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--runs", nargs="*", default=["pb2_rec_c2"]); ap.add_argument("--dd", type=float, default=1.3, help="drainage density km/km2")
     ap.add_argument("--f", type=float, default=0.25); a = ap.parse_args()
-    qo = pd.read_csv(os.path.join(ROOT, "inputs", "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
-    mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy"))
+    qo = pd.read_csv(os.path.join(D.INPUTS, "obs", f"streamflow_daily_wy{D.WATER_YEAR}.csv"), parse_dates=["date"]).set_index("date")
+    mask = np.load(os.path.join(D.INPUTS, "static", "mask.npy"))
     rain = []
-    for fpath in sorted(glob.glob(os.path.join(ROOT, "inputs", "forcing", f"wy{D.WATER_YEAR}", "CW3E.APCP.*.pfb"))):
+    for fpath in sorted(glob.glob(os.path.join(D.INPUTS, "forcing", f"wy{D.WATER_YEAR}", "CW3E.APCP.*.pfb"))):
         rain.append(read_pfb(fpath)[:, mask].mean(axis=1).sum() * 3600.0)
     rain = pd.Series(rain, index=pd.date_range(D.START, periods=len(rain)))
     series = {}
     for k, o in D.OUTLETS.items():
         series[(k, "USGS")] = (qo[o["gages"]].sum(axis=1, min_count=len(o["gages"])), o["usgs_km2"])
     for r in a.runs:
-        d = pd.read_csv(os.path.join(ROOT, "results", f"{r}_daily.csv"), parse_dates=["date"]).set_index("date")
+        d = pd.read_csv(os.path.join(D.RESULTS, f"{r}_daily.csv"), parse_dates=["date"]).set_index("date")
         for k, o in D.OUTLETS.items():
             series[(k, r)] = (d[f"q_{k}"], o["usgs_km2"])
     rows = []
@@ -95,9 +95,9 @@ def main():
             if np.isfinite(a1): ax[i].loglog(qq / 86400, a1 * qq / 86400, "--", color=c, lw=0.8)
         ax[i].set_title(k); ax[i].set_xlabel("Q [m3/s]"); ax[i].set_ylabel("-dQ/dt [m3/s per day]"); ax[i].legend(fontsize=7, frameon=False); ax[i].grid(alpha=0.3, which="both")
     fig.suptitle(f"recession analysis, WY{D.WATER_YEAR}: dashed: late-time slope 1 lower envelope; drainage density {a.dd} km/km2, f = {a.f}")
-    out = os.path.join(ROOT, "results", "recession.png"); fig.savefig(out, dpi=120)
+    out = os.path.join(D.RESULTS, "recession.png"); fig.savefig(out, dpi=120)
     t = pd.DataFrame(rows); pd.set_option("display.width", 200)
-    print(t.round(3).to_string(index=False)); t.to_csv(os.path.join(ROOT, "results", "recession.csv"), index=False); print("wrote", out)
+    print(t.round(3).to_string(index=False)); t.to_csv(os.path.join(D.RESULTS, "recession.csv"), index=False); print("wrote", out)
     print(f"\nT scales with f and with 1/dd^2: the numbers above are for f = {a.f}, dd = {a.dd} km/km2.  A model recession of a few days is")
     print("surface routing of storm water, not aquifer drainage, so the Boussinesq numbers for the model rows are not aquifer properties.")
     print("model geology K as shipped: g4 1.2, g5 1.4 m/day; sand soils 6.5 m/day; the flow barrier sits 7 m down; T of the 7 m above it about 20 m2/day")

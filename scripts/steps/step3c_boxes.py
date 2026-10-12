@@ -27,11 +27,11 @@ z = np.load(os.path.join(ROOT, "results", "context_fields.npz")); b = tuple(int(
 e = np.load(os.path.join(ROOT, "results", "context_exits.npz")); fd = e["fd"]
 land = np.nan_to_num(z["mask"], nan=0) > 0; el = np.where(land, z["elevation"], np.nan); da = np.where(land, z["drainage_area"], np.nan); sb = np.where(land, z["subbasins"], np.nan)
 m = D.IJ_BOUNDS[0] - b[0]
-mask = np.load(os.path.join(ROOT, "inputs", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
+mask = np.load(os.path.join(ROOT, "inputs", "v1", "static", "mask.npy")); full = np.zeros(land.shape, bool); full[m:m + D.NY, m:m + D.NX] = mask
 new = np.load(os.path.join(ROOT, "results", "steps", "step3b_mask_frame.npy"))
-sites = pd.read_csv(os.path.join(ROOT, "inputs", "obs", "sites.csv"), dtype={"site_id": str})
+sites = pd.read_csv(os.path.join(ROOT, "inputs", "v1", "obs", "sites.csv"), dtype={"site_id": str})
 # the converged new-subsurface run's final pressure, placed in the frame
-p = read_pfb(os.path.join(ROOT, "runs", "pb3_rec_c4", "pb3_rec_c4.out.press.08784.pfb"))
+p = read_pfb(os.path.join(ROOT, "runs", "v1", "pb3_rec_c4", "pb3_rec_c4.out.press.08784.pfb"))
 top = np.full(land.shape, np.nan); top[m:m + D.NY, m:m + D.NX] = np.where(mask, p[-1], np.nan)
 wtd = np.full(land.shape, np.nan); wtd[m:m + D.NY, m:m + D.NX] = np.where(mask, water_table_depth(p, mask), np.nan)
 surf = np.where(top > 0, top, -wtd)                                                 # + ponded depth, - water-table depth [m]

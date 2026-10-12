@@ -22,6 +22,7 @@ from parflow.tools.io import read_pfb
 
 HERE = os.path.dirname(os.path.abspath(__file__)); ROOT = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import domain as D
 import deck
 DZ = np.array(deck.DZ_SCALE) * 200.0; AREA = 1.0e6
 
@@ -35,7 +36,7 @@ def main():
     name = os.path.basename(glob.glob(os.path.join(rd, "*.pfidb"))[0])[:-6]
     mask3 = read_pfb(os.path.join(rd, f"{name}.out.mask.pfb")) > 0.5; mask = mask3[-1]
     poro = read_pfb(os.path.join(rd, f"{name}.out.porosity.pfb"))
-    river = np.load(os.path.join(ROOT, "inputs", "static", "river_mask.npy")).astype(bool) & mask
+    river = np.load(os.path.join(D.INPUTS, "static", "river_mask.npy")).astype(bool) & mask
     pme = read_pfb(os.path.join(rd, "pme.pfb"))
     q_pme = float(np.sum(np.abs(pme) * DZ[:, None, None] * AREA * mask3))        # m3/h, prescribed, |.|
     net_pme = float(np.sum(pme * DZ[:, None, None] * AREA * mask3))
