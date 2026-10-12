@@ -38,6 +38,12 @@ ap.add_argument("--overland", default="kinematic", choices=("kinematic", "diffus
                      "magnitude lagged one step, or fully implicit (both need ParFlow PR 777); or the "
                      "OverlandDiffusive boundary condition (dwe)")
 ap.add_argument("--ic", default=os.path.join(ROOT, "inputs", "initial", "ic_pressure_delaware_h8784.pfb"), help="initial pressure pfb")
+ap.add_argument("--geology-k-scale", type=float, default=1.0, help="multiply the geology units' permeability (g1-g8)")
+ap.add_argument("--geology-aniso", type=float, default=None, help="vertical/horizontal permeability ratio for the geology units (0.1 as shipped)")
+ap.add_argument("--horizontal-only", action="store_true", help="apply --geology-k-scale to x and y only; vertical permeability stays as shipped")
+ap.add_argument("--flow-barrier", default=None, help="flow barrier file to use instead of inputs/static/pf_flowbarrier.pfb (e.g. pf_flowbarrier_42m.pfb)")
+ap.add_argument("--no-flow-barrier", action="store_true", help="drop the CONUS2.1 vertical flow barrier")
+ap.add_argument("--mannings", default=None, help="roughness file to use instead of inputs/static/mannings.pfb (e.g. mannings_v1.pfb)")
 ap.add_argument("--no-urban", action="store_true", help="use the plain CONUS2.1 indicator (no urban top-layer classes)")
 ap.add_argument("--clm-restart", default=None, help="CLM restart file to start from (default: cold start, drv_clmin clm_ic 2)")
 args = ap.parse_args()
@@ -46,6 +52,10 @@ rundir = os.path.join(ROOT, "runs", args.name)
 mkdir(rundir)
 for f in deck.STATIC_FILES:
     shutil.copy(os.path.join(ROOT, "inputs", "static", f), rundir)
+if args.mannings:
+    shutil.copy(args.mannings, os.path.join(rundir, "mannings.pfb"))
+if args.flow_barrier:
+    shutil.copy(args.flow_barrier, os.path.join(rundir, "pf_flowbarrier.pfb"))
 URBAN = not args.no_urban
 if URBAN:                                   # the urban top-layer classes (the Delaware package)
     shutil.copy(os.path.join(ROOT, "inputs", "static", "pf_indicator_urban_ktop02.pfb"), os.path.join(rundir, "pf_indicator.pfb"))
@@ -63,7 +73,7 @@ pb = Run(args.name)                      # working directory = rundir (we change
 # ---------------------------------------------------------------- grid, units, subsurface, topography (scripts/deck.py)
 deck.grid(pb, args.np)
 deck.domain_and_units(pb, URBAN)
-deck.subsurface(pb, URBAN)
+deck.subsurface(pb, URBAN, args.geology_k_scale, not args.no_flow_barrier, args.geology_aniso, args.horizontal_only)
 deck.topography(pb)
 
 # ---------------------------------------------------------------- boundary conditions

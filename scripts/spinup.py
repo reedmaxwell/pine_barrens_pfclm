@@ -47,6 +47,7 @@ def main():
     ap.add_argument("--hours", type=int, default=8784); ap.add_argument("--first", type=int, default=1, help="first cycle number (to resume)")
     ap.add_argument("--clm-start", default=None, help="CLM restart to start cycle 1 from (default: cold start)")
     ap.add_argument("--tag", default="pb_spin", help="run-name prefix")
+    ap.add_argument("--run-args", default="", help="extra options for run_pine_barrens.py, e.g. '--geology-k-scale 100 --horizontal-only --flow-barrier inputs/static/pf_flowbarrier_42m.pfb'")
     a = ap.parse_args()
     from parflow.tools.io import read_pfb
     env = dict(os.environ, PARFLOW_DIR=a.parflow_dir)
@@ -61,7 +62,7 @@ def main():
     for k in range(a.first, a.cycles + 1):
         name = f"{a.tag}_c{k}"; rd = os.path.join(ROOT, "runs", name)
         shutil.rmtree(rd, ignore_errors=True)
-        cmd = [run_py, os.path.join(HERE, "run_pine_barrens.py"), "--hours", str(a.hours), "--name", name, "--overland", a.overland, "--ic", ic]
+        cmd = [run_py, os.path.join(HERE, "run_pine_barrens.py"), "--hours", str(a.hours), "--name", name, "--overland", a.overland, "--ic", ic] + a.run_args.split()
         if rst:
             cmd += ["--clm-restart", rst]
         t0 = time.time(); print(f"--- cycle {k}: {' '.join(cmd[2:])}", flush=True)

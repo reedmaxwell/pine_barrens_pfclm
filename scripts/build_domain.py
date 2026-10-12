@@ -36,6 +36,8 @@ Steps
                  clean drv_clmin.dat for the water year (cold start), and the East River drv_vegp.dat
   5. sites       inputs/obs/sites.csv: gages and towers with their local cells
   6. urban       pf_indicator_urban_ktop02.pfb: the urban top-layer classes (the Delaware package)
+  7. mannings    mannings_v1.pfb: channels 0.15, open land raised to the forest 0.10 (a test variant)
+  8. barrier     pf_flowbarrier_42m.pfb: the CONUS2.1 barrier moved from 7 m to 42 m (a test variant)
 """
 import argparse
 import os
@@ -367,7 +369,46 @@ def step_urban(force):
     print("wrote", out)
 
 
-STEPS = {"delineate": step_delineate, "statics": step_statics, "slopes": step_slopes, "clm": step_clm, "sites": step_sites, "urban": step_urban}
+# ---------------------------------------------------------------------------- 7. mannings
+def step_mannings(force, river_n=0.15, min_hill_n=0.10):
+    """a roughness variant: CONUS2 river cells raised to river_n [s m^-1/3] (0.07 to 0.09 as shipped), and
+    every other cell raised to at least min_hill_n (the urban 0.020 and grassland 0.035 categories become the
+    forest 0.10).  ParFlow's unit is hr m^-1/3 = s / 3600.  Written to inputs/static/mannings_v1.pfb; the
+    run script takes it with --mannings."""
+    from parflow.tools.io import read_pfb, write_pfb
+    out = os.path.join(STATIC, "mannings_v1.pfb")
+    if not force and os.path.exists(out):
+        print("mannings_v1 present; skip"); return
+    mask = np.load(MASK_NPY); river = np.load(os.path.join(STATIC, "river_mask.npy")).astype(bool) & mask
+    mn = read_pfb(os.path.join(STATIC, "mannings.pfb")); new = mn.copy()
+    new[0][mask] = np.maximum(new[0][mask], min_hill_n / 3600.0)
+    new[0][river] = river_n / 3600.0
+    write_pfb(out, new, p=1, q=1, r=1, dx=1000.0, dy=1000.0, dz=1000.0, dist=False)
+    vals, cnt = np.unique(new[0][mask], return_counts=True)
+    print("mannings_v1 over the mask [s m^-1/3]: " + ", ".join(f"{v * 3600:.3f} x{c}" for v, c in zip(vals, cnt)) + f"; river cells {int(river.sum())} at {river_n}")
+    print("wrote", out)
+
+
+# ---------------------------------------------------------------------------- 8. barrier
+def step_barrier(force, layer=2):
+    """the flow-barrier variant: the CONUS2.1 barrier is a 0.001 multiplier on the flux across the face above
+    layer 4 (7 m down) in 1,235 of 1,246 cells.  Move it to the face above `layer` (2: 42 m down, the base of
+    the 25 m layer; 1: 92 m).  Written to inputs/static/pf_flowbarrier_<depth>m.pfb; the run script takes it
+    with --flow-barrier."""
+    from parflow.tools.io import read_pfb, write_pfb
+    import deck
+    dz = np.array(deck.DZ_SCALE) * 200.0; depth = dz[layer + 1:].sum()
+    out = os.path.join(STATIC, f"pf_flowbarrier_{depth:.0f}m.pfb")
+    if not force and os.path.exists(out):
+        print("barrier variant present; skip"); return
+    fb = read_pfb(os.path.join(STATIC, "pf_flowbarrier.pfb")); new = fb.copy()
+    src = np.nanmin(fb, axis=0); moved = fb[4] < 1          # the cells that carry the barrier at layer 4
+    new[4] = np.where(moved, 1.0, fb[4]); new[layer] = np.where(moved, fb[4], fb[layer])
+    write_pfb(out, new, p=1, q=1, r=1, dx=1000.0, dy=1000.0, dz=200.0, z_first=True, dist=False)
+    print(f"barrier moved from 7 m to {depth:.0f} m in {int(moved.sum())} cells; wrote {out}")
+
+
+STEPS = {"delineate": step_delineate, "statics": step_statics, "slopes": step_slopes, "clm": step_clm, "sites": step_sites, "urban": step_urban, "mannings": step_mannings, "barrier": step_barrier}
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--force", action="store_true"); ap.add_argument("--step", choices=list(STEPS))
