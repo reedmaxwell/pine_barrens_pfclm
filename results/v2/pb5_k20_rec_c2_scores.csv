@@ -1,0 +1,14 @@
+quantity,n,bias,rmse,r,NSE,KGE
+"streamflow 01408500 nested [m3/s], daily",366,-1.732,3.389,0.818,-1.512,-0.136
+"streamflow 01409000 nested [m3/s], daily",366,-1.578,1.713,0.779,-2.451,0.287
+"streamflow 01409280 nested [m3/s], daily",366,-0.698,0.713,0.772,-8.446,0.049
+"streamflow 01409810 nested [m3/s], daily",366,-0.522,2.156,0.784,-0.453,0.172
+"streamflow 01410000 nested [m3/s], daily",366,-0.158,1.811,0.802,-1.649,-0.327
+"streamflow 01464500 nested [m3/s], daily",366,-0.6,1.705,0.763,0.514,0.634
+"streamflow 01465850 nested [m3/s], daily",366,-1.09,1.323,0.871,0.01,0.216
+"streamflow 01466900 nested [m3/s], daily",366,-0.36,1.396,0.733,-0.346,0.295
+"streamflow 01467000 nested [m3/s], daily",366,-2.308,2.643,0.802,-0.733,0.149
+"streamflow 01408900 nested [m3/s], daily",366,-1.428,1.567,0.784,-2.471,0.279
+"ET US-Slt [mm/day], tower days",229,0.705,1.184,0.798,0.271,0.492
+"ET US-Dix [mm/day], tower days",170,0.382,0.777,0.208,-3.615,-0.45
+"ET US-Ced [mm/day], tower days",264,-0.278,1.046,0.579,0.277,0.429
