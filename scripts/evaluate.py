@@ -201,28 +201,8 @@ def main():
         tab.to_csv(os.path.join(D.RESULTS, f"{name}_scores.csv"), index=False); print(tab.to_string(index=False))
     else:
         print("no observations on disk (run scripts/get_obs.py); daily table written")
-    # figure
-    panels = list(OUTLETS.items()) if not UNITS else [(sid, None) for sid in list(qn)[:6]]
-    n = len(panels) + len(et)
-    fig, ax = plt.subplots(n, 1, figsize=(10, 2.4 * n), constrained_layout=True)
-    for x, (k, o) in zip(ax, panels):
-        if o is None:                                                                  # a gage cell
-            if qo is not None and k in qo.columns: x.plot(qo.index, qo[k], "k", lw=1, label=f"USGS {k}")
-            x.plot(out.index, out[f"q_{k}"], "C0", lw=1, label=f"model {k} (gage cell)"); x.set_ylabel("m3/s"); continue
-        if qo is not None and all(g in qo.columns for g in o["gages"]):
-            x.plot(qo.index, qo[o["gages"]].sum(axis=1, min_count=len(o["gages"])), "k", lw=1, label="USGS " + "+".join(o["gages"]))
-        x.plot(out.index, out[f"q_{k}"], "C0", lw=1, label=f"model {k} (outlet + bank spill)")
-        x.plot(out.index, out[f"q_{k}"] * (1 - out[f"spill_{k}"].fillna(0)), "C0", lw=0.7, ls="--", label="outlet face only")
-        x.set_ylabel("m3/s")
-    for x, sid in zip(ax[len(panels):], et):
-        if eo is not None and sid in eo.columns:
-            x.plot(eo.index, eo[sid], "k.", ms=3, label=f"tower {sid}")
-        x.plot(out.index, out[f"et_{sid}"], "C0", lw=1, label=f"model {sid}" + (" (nearest active cell)" if not bool(towers[towers.site_id == sid].in_mask.iloc[0]) else ""))
-        x.set_ylabel("ET mm/day")
-    for x in ax:
-        x.legend(frameon=False, fontsize=8); x.grid(alpha=0.3); x.set_xlim(WY0, WY0 + pd.Timedelta(days=ndays))
-    fig.suptitle(f"Pine Barrens WY{D.WATER_YEAR}: {name}")
-    fig.savefig(os.path.join(D.RESULTS, f"{name}_evaluation.png"), dpi=130)
+    # figure: every gage named and numbered, from the daily table just written
+    import plot_eval; plot_eval.plot(name)
     print("wrote results/" + f"{name}_daily.csv, {name}_scores.csv, {name}_evaluation.png")
 
 
